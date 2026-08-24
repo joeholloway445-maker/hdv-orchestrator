@@ -1,28 +1,21 @@
 {
-  "name": "hdv-orchestrator",
-  "version": "0.2.0",
-  "description": "HDV Foundation Orchestrator — Apex-controlled 20,480-node topology with persistent Hope/Knoll/Apex and ephemeral Dream/Vision workers",
-  "main": "dist/index.js",
+  "name": "hdv-workflow-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Distributed Workflow Automation Platform — n8n-style DAG executor with BullMQ, Prisma, React Flow",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "uuid": "^9.0.1",
-    "ws": "^8.18.0"
+    "dev:all": "concurrently \"npm run dev -w packages/api\" \"npm run dev -w packages/worker\" \"npm run dev -w packages/frontend\"",
+    "dev:backend": "concurrently \"npm run dev -w packages/api\" \"npm run dev -w packages/worker\"",
+    "build": "npm run build --workspaces --if-present",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "migrate": "npm run migrate -w packages/api"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.14.0",
-    "@types/uuid": "^9.0.8",
-    "@types/ws": "^8.5.10",
-    "ts-node": "^10.9.2",
+    "concurrently": "^9.0.0",
     "typescript": "^5.5.0"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }

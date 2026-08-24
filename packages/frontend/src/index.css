@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #111827;
+}
+
+/* React Flow node status animations */
+.react-flow__node.node-running {
+  animation: pulse-ring 1s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 2px #facc15; }
+  50% { box-shadow: 0 0 0 4px #facc1588; }
+}
