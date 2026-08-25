@@ -802,6 +802,7 @@ export function EditorPage() {
             nodeLog={selectedNodeLog}
             inputSuggestions={inputSuggestions}
             webhookBaseUrl={import.meta.env.VITE_API_BASE_URL || "http://localhost:4000"}
+            workflowId={id}
           />
         )}
       </div>

@@ -97,6 +97,7 @@ interface Props {
   webhookBaseUrl?: string;
   nodeLog?: NodeLog | null;
   inputSuggestions?: string[];
+  workflowId?: string;
 }
 
 interface FieldRule {
@@ -214,18 +215,29 @@ export function NodeConfigPanel({
   webhookBaseUrl = "http://localhost:4000",
   nodeLog,
   inputSuggestions,
+  workflowId,
 }: Props) {
   const [local, setLocal] = useState<NodeData>(node.data);
-  const [tab, setTab] = useState<"config" | "output">("config");
+  const [tab, setTab] = useState<"config" | "output" | "test">("config");
+  const [testInput, setTestInput] = useState("{}");
+  const [testOutput, setTestOutput] = useState<unknown>(undefined);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
   const [credentials, setCredentials] = useState<Credential[]>([]);
 
   useEffect(() => {
     setLocal(node.data);
     setTab("config");
+    setTestOutput(undefined);
+    setTestError(null);
+    setTestInput(nodeLog?.input ? JSON.stringify(nodeLog.input, null, 2) : "{}");
   }, [node.id]);
 
   useEffect(() => {
-    if (nodeLog) setTab("output");
+    if (nodeLog) {
+      setTab("output");
+      if (nodeLog.input) setTestInput(JSON.stringify(nodeLog.input, null, 2));
+    }
   }, [nodeLog]);
 
   useEffect(() => {
@@ -236,6 +248,24 @@ export function NodeConfigPanel({
 
   function patch(partial: Partial<NodeData>) {
     setLocal((prev) => ({ ...prev, ...partial }));
+  }
+
+  async function runTest() {
+    if (!workflowId) return;
+    setTestLoading(true);
+    setTestOutput(undefined);
+    setTestError(null);
+    try {
+      let parsedInput: Record<string, unknown> = {};
+      try { parsedInput = JSON.parse(testInput); } catch { setTestError("Invalid JSON input"); setTestLoading(false); return; }
+      const { data } = await api.post(`/workflows/${workflowId}/test-node`, { nodeId: node.id, input: parsedInput });
+      if (data.error) setTestError(data.error);
+      else setTestOutput(data.output);
+    } catch (e: unknown) {
+      setTestError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setTestLoading(false);
+    }
   }
 
   function generateWebhookId() {
@@ -260,24 +290,57 @@ export function NodeConfigPanel({
         </button>
       </div>
 
-      {nodeLog && (
-        <div className="flex border-b border-gray-700">
-          {(["config", "output"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2 text-xs font-medium capitalize transition ${
-                tab === t ? "text-white border-b-2 border-blue-500" : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex border-b border-gray-700">
+        {(["config", ...(nodeLog ? ["output"] : []), ...(workflowId ? ["test"] : [])] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t as "config" | "output" | "test")}
+            className={`flex-1 py-2 text-xs font-medium capitalize transition ${
+              tab === t ? "text-white border-b-2 border-blue-500" : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {tab === "output" && nodeLog ? (
+        {tab === "test" && workflowId ? (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Input JSON</label>
+              <textarea
+                className={inputCls + " resize-none font-mono text-xs"}
+                rows={8}
+                value={testInput}
+                onChange={(e) => setTestInput(e.target.value)}
+                placeholder={'{\n  "body": { "email": "test@example.com" }\n}'}
+              />
+              <p className="text-xs text-gray-500 mt-1">Simulates the $input received by this node.</p>
+            </div>
+            <button
+              onClick={runTest}
+              disabled={testLoading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-medium transition"
+            >
+              {testLoading ? "Running…" : "▶ Run Test"}
+            </button>
+            {testError && (
+              <div>
+                <label className={labelCls + " !text-red-400"}>Error</label>
+                <pre className="bg-gray-900 text-red-300 rounded-lg p-3 text-xs overflow-auto max-h-48 whitespace-pre-wrap">{testError}</pre>
+              </div>
+            )}
+            {testOutput !== undefined && (
+              <div>
+                <label className={labelCls + " !text-green-400"}>Output</label>
+                <pre className="bg-gray-900 text-green-300 rounded-lg p-3 text-xs overflow-auto max-h-64 whitespace-pre-wrap">
+                  {JSON.stringify(testOutput, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        ) : tab === "output" && nodeLog ? (
           <div className="space-y-4">
             <div>
               <span

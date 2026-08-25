@@ -168,4 +168,31 @@ router.post("/:id/execute", async (req: AuthRequest, res) => {
   res.status(202).json(execution);
 });
 
+// ── Test Single Node ─────────────────────────────────────────────────────────
+
+router.post("/:id/test-node", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const { nodeId, input } = req.body as { nodeId?: string; input?: Record<string, unknown> };
+  const nodes = (workflow.nodes as Array<{ id: string; data: Record<string, unknown> }>);
+  const node = nodeId ? nodes.find((n) => n.id === nodeId) : null;
+  if (!node) return res.status(404).json({ error: "Node not found in workflow" });
+
+  const workerUrl = process.env.WORKER_INTERNAL_URL || "http://localhost:4001";
+  try {
+    const resp = await fetch(`${workerUrl}/test-node`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node, input: input || {} }),
+    });
+    const data = await resp.json() as Record<string, unknown>;
+    res.json(data);
+  } catch {
+    res.status(502).json({ error: "Worker unavailable — ensure the worker process is running" });
+  }
+});
+
 export { router as workflowsRouter };

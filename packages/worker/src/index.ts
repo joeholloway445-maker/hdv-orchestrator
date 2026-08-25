@@ -4,6 +4,7 @@ import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
 import { startScheduler } from "./scheduler";
+import { startTestServer } from "./testServer";
 
 const prisma = new PrismaClient();
 
@@ -106,3 +107,4 @@ worker.on("failed", (job, err) => console.error(`[Worker] Job ${job?.id} failed:
 console.log("[Worker] Listening on workflow-execution queue...");
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
+startTestServer(prisma);
