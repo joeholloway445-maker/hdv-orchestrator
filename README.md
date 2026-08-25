@@ -1,39 +1,47 @@
-# HDV Orchestrator v0.2.0
+# HDV Orchestrator
 
-Correct architecture:
+A workflow automation engine with a visual node-based editor.
 
-- **HOPE** (persistent) — Interprets user intent and governs. Assigns work via Apex.
-- **APEX** (persistent) — Pure orchestrator / traffic controller. Assigns nodes.
-- **KNOLL** (persistent) — Security gate.
-- **DREAM / VISION** — Ephemeral matrices. Nodes are spun up only when needed and self-terminate.
+## Structure
 
-Topology:
-- 5 matrices
-- 64 sub-managers per matrix (8×8)
-- 64 nodes per manager
-- **20,480 total nodes**
-- 100 personas per node → **2,048,000 logical personas**
+```
+packages/
+  api/      — Express REST API + Prisma (PostgreSQL)
+  worker/   — BullMQ worker that executes workflow DAGs
+  web/      — React + Vite frontend
+```
 
-Almost all nodes stay dormant. Only activated nodes do work, then self-terminate.
+## Prerequisites
 
-## Quick start (on your KVM4)
+- Node.js 20+
+- Docker (for PostgreSQL + Redis)
+
+## Quick start
 
 ```bash
-git clone https://github.com/joeholloway445-maker/hdv-orchestrator.git
-cd hdv-orchestrator
+# Start Postgres and Redis
+docker compose up -d
+
+# Install dependencies
 npm install
-cp .env.example .env
-npm run dev
+
+# Run database migrations
+npm run migrate --workspace=packages/api
+
+# Start all services
+npm run dev:all
 ```
 
-Then test:
+`npm run dev:all` launches the API (port 4000), worker, and web dev server (port 5173) concurrently.
 
-```bash
-curl -X POST http://localhost:3000/intent \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Imagine a private subliminal chamber"}'
-```
+## Environment variables
 
-```bash
-curl http://localhost:3000/stats
-```
+Copy `.env.example` to `.env` in `packages/api/` and `packages/worker/`:
+
+| Variable        | Description                          |
+|-----------------|--------------------------------------|
+| DATABASE_URL    | PostgreSQL connection string         |
+| REDIS_URL       | Redis connection string              |
+| JWT_SECRET      | Secret for signing auth tokens       |
+| ENCRYPTION_KEY  | 64-char hex key for AES-256-GCM      |
+| FRONTEND_URL    | Allowed CORS origin (default: http://localhost:5173) |
