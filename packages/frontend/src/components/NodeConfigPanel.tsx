@@ -62,6 +62,9 @@ interface NodeData {
   // Crypto node
   secretKey?: string;
   encoding?: string;
+  // Merge node
+  mergeMode?: string;
+  keyField?: string;
   // Pinned data
   _pinnedData?: string;
   [key: string]: unknown;
@@ -521,6 +524,28 @@ export function NodeConfigPanel({
               <div>
                 <label className={labelCls}>JavaScript (return output)</label>
                 <textarea className={inputCls + " font-mono resize-none"} rows={12} value={local.code || ""} onChange={(e) => patch({ code: e.target.value })} placeholder={"// $input = previous output\nreturn { ...$input, processed: true };"} />
+              </div>
+            )}
+
+            {/* Merge */}
+            {nodeType === "merge" && (
+              <div className="space-y-3">
+                <div>
+                  <label className={labelCls}>Merge Mode</label>
+                  <select className={inputCls} value={(local.mergeMode as string) || "combine"} onChange={(e) => patch({ mergeMode: e.target.value })}>
+                    <option value="combine">Combine — array of all inputs</option>
+                    <option value="passThrough">Pass Through — last input only</option>
+                    <option value="zip">Zip — pair items by index</option>
+                    <option value="mergeByKey">Merge By Key — deep-merge on key field</option>
+                  </select>
+                </div>
+                {(local.mergeMode as string) === "mergeByKey" && (
+                  <div>
+                    <label className={labelCls}>Key Field</label>
+                    <input className={inputCls} value={(local.keyField as string) || "id"} onChange={(e) => patch({ keyField: e.target.value })} placeholder="id" />
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">Connect multiple nodes into this merge node. The selected mode controls how their outputs are combined.</p>
               </div>
             )}
 

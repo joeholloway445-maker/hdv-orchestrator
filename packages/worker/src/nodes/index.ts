@@ -23,6 +23,7 @@ import { executeCSV } from "./csv";
 import { executeHtmlExtract } from "./html";
 import { executeJsonPath } from "./jsonPath";
 import { executeStopError } from "./stopError";
+import { executeMerge } from "./merge";
 
 interface NodeDef {
   id: string;
@@ -50,7 +51,7 @@ export async function executeNode(
     case "set":
       return executeSet(node, $input);
     case "merge":
-      return $input;
+      return executeMerge(node, $input);
     case "loop":
       return executeLoop(node, $input);
     case "wait":
