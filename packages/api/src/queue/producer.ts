@@ -11,6 +11,10 @@ export interface WorkflowJob {
   workflowId: string;
   executionId: string;
   triggerData: Record<string, unknown>;
+  /** When set, successful node outputs from this prior execution are used as checkpoints. */
+  checkpointExecutionId?: string;
+  /** Nesting depth for sub-workflow calls; enforces max depth guard. */
+  executionDepth?: number;
 }
 
 export async function enqueueWorkflow(job: WorkflowJob) {

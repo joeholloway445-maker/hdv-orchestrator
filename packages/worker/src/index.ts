@@ -5,6 +5,8 @@ import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
 import { startScheduler } from "./scheduler";
 import { startTestServer } from "./testServer";
+import { startStallRecovery } from "./stall";
+import { cleanupPayloads, payloadSummary } from "./lib/payload";
 
 const prisma = new PrismaClient();
 
@@ -19,10 +21,12 @@ const publisher = new IORedis(process.env.REDIS_URL || "redis://localhost:6379",
 const worker = new Worker(
   "workflow-execution",
   async (job) => {
-    const { workflowId, executionId, triggerData } = job.data as {
+    const { workflowId, executionId, triggerData, checkpointExecutionId, executionDepth } = job.data as {
       workflowId: string;
       executionId: string;
       triggerData: Record<string, unknown>;
+      checkpointExecutionId?: string;
+      executionDepth?: number;
     };
 
     console.log(`[Worker] Execution ${executionId} — workflow ${workflowId}`);
@@ -52,7 +56,7 @@ const worker = new Worker(
         setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
       );
       const finalOutputs = await Promise.race([
-        executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }),
+        executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId, executionDepth }),
         timeoutPromise,
       ]);
 
@@ -63,14 +67,20 @@ const worker = new Worker(
         if (wr) { webhookResponse = wr; break; }
       }
 
+      // Summarize final outputs to avoid writing large blobs into the execution row
+      const summaryOutputs = Object.fromEntries(
+        Object.entries(finalOutputs).map(([k, v]) => [k, payloadSummary(v)])
+      );
+
       await prisma.execution.update({
         where: { id: executionId },
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
-          data: { triggerData, outputs: finalOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
+          data: { triggerData, outputs: summaryOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
         },
       });
+      await cleanupPayloads(executionId);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
@@ -78,6 +88,7 @@ const worker = new Worker(
         where: { id: executionId },
         data: { status: "FAILED", finishedAt: new Date(), data: { triggerData, error: msg } },
       });
+      await cleanupPayloads(executionId);
       await publisher.publish(
         "workflow:telemetry",
         JSON.stringify({ type: "execution-failed", executionId, error: msg })
@@ -98,7 +109,17 @@ const worker = new Worker(
       }
     }
   },
-  { connection }
+  {
+    connection,
+    // Lock expires after 30s; if the worker hasn't renewed it the job is
+    // considered stalled. Lock renews every 15s (lockDuration / 2).
+    lockDuration: 30_000,
+    // Check for stalled jobs every 15s so recovery is prompt.
+    stalledInterval: 15_000,
+    // Allow one stall retry (handles transient Redis connectivity blips).
+    // If it stalls again, BullMQ marks it failed and QueueEvents fires.
+    maxStalledCount: 1,
+  }
 );
 
 worker.on("completed", (job) => console.log(`[Worker] Job ${job.id} completed`));
@@ -108,3 +129,33 @@ console.log("[Worker] Listening on workflow-execution queue...");
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
 startTestServer(prisma);
+
+// ── Stall recovery ────────────────────────────────────────────────────────────
+
+let stallCleanup: (() => Promise<void>) | null = null;
+startStallRecovery(prisma)
+  .then((cleanup) => { stallCleanup = cleanup; })
+  .catch((err) => console.error("[StallRecovery] Failed to start:", err));
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// Drain in-flight jobs before exiting so locks are released cleanly and
+// in-progress executions can finish rather than becoming orphans.
+
+async function shutdown(signal: string) {
+  console.log(`[Worker] ${signal} received — draining in-flight jobs...`);
+  try {
+    await worker.close();         // stop accepting new jobs, await current job
+    await stallCleanup?.();       // close QueueEvents listeners
+    await prisma.$disconnect();
+    connection.disconnect();
+    publisher.disconnect();
+    console.log("[Worker] Graceful shutdown complete");
+  } catch (err) {
+    console.error("[Worker] Error during shutdown:", err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT",  () => shutdown("SIGINT"));

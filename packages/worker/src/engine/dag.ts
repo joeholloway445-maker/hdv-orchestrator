@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import type IORedis from "ioredis";
 import { executeNode } from "../nodes";
 import { getGlobalVars } from "../lib/globalVars";
+import { storePayload, resolvePayload, payloadSummary } from "../lib/payload";
 
 interface RawNode {
   id: string;
@@ -23,13 +24,17 @@ interface Options {
   triggerData: Record<string, unknown>;
   publisher: IORedis;
   prisma: PrismaClient;
+  /** If set, successful node outputs from this prior execution seed the checkpoint cache. */
+  checkpointExecutionId?: string;
+  /** Current sub-workflow nesting depth; enforced in subWorkflow node. */
+  executionDepth?: number;
 }
 
 async function pub(publisher: IORedis, executionId: string, event: Record<string, unknown>) {
   await publisher.publish("workflow:telemetry", JSON.stringify({ executionId, ...event }));
 }
 
-export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }: Options) {
+export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId, executionDepth = 0 }: Options) {
   const nodes = workflow.nodes as RawNode[];
   const edges = workflow.edges as RawEdge[];
 
@@ -54,6 +59,29 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
   for (const node of nodes) nodeStatus[node.id] = "pending";
 
   const launched = new Set<string>();
+
+  // Checkpoint: pre-seed outputs from a prior execution's successful node logs.
+  // Nodes with spilled outputs (stub only in DB) are left pending so they re-run.
+  if (checkpointExecutionId) {
+    const checkpointLogs = await prisma.executionNodeLog.findMany({
+      where: { executionId: checkpointExecutionId, status: "SUCCESS" },
+    });
+    for (const log of checkpointLogs) {
+      const out = log.output as unknown;
+      if (out && typeof out === "object" && (out as Record<string, unknown>)._spilled === true) {
+        // Can't restore spilled payload after cleanup — let this node re-run
+        continue;
+      }
+      if (nodeStatus[log.nodeId] !== undefined) {
+        outputs[log.nodeId] = out;
+        nodeStatus[log.nodeId] = "done";
+        launched.add(log.nodeId);
+      }
+    }
+    if (checkpointLogs.length > 0) {
+      console.log(`[DAG] Checkpoint restored ${Object.keys(outputs).length} node(s) from execution ${checkpointExecutionId}`);
+    }
+  }
 
   function isReady(nodeId: string): boolean {
     return parents[nodeId].every((pid) => nodeStatus[pid] === "done" || nodeStatus[pid] === "skipped");
@@ -82,38 +110,42 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
 
     const nodeType = String(node.data?.nodeType || node.type || "unknown");
 
-    // Gather inputs from parent outputs
-    const parentOuts = parents[nodeId]
-      .filter((pid) => nodeStatus[pid] === "done")
-      .map((pid) => outputs[pid])
-      .filter((o) => o !== undefined);
+    // Gather inputs from parent outputs, resolving any spill refs
+    const parentOuts = await Promise.all(
+      parents[nodeId]
+        .filter((pid) => nodeStatus[pid] === "done")
+        .map((pid) => resolvePayload(outputs[pid]))
+    );
+    const filtered = parentOuts.filter((o) => o !== undefined);
     const $input: Record<string, unknown> =
-      parentOuts.length === 1
-        ? (parentOuts[0] as Record<string, unknown>)
-        : parentOuts.length > 1
-          ? { items: parentOuts }
+      filtered.length === 1
+        ? (filtered[0] as Record<string, unknown>)
+        : filtered.length > 1
+          ? { items: filtered }
           : triggerData;
 
     nodeStatus[nodeId] = "running";
     await pub(publisher, executionId, { type: "node-started", nodeId, nodeType });
 
     const logEntry = await prisma.executionNodeLog.create({
-      data: { executionId, nodeId, nodeType, status: "RUNNING", input: $input as object },
+      data: { executionId, nodeId, nodeType, status: "RUNNING", input: payloadSummary($input) as object },
     });
 
     try {
       // Pinned data short-circuits actual execution for testing
       const pinnedRaw = node.data._pinnedData;
-      const output = pinnedRaw
+      const rawOutput = pinnedRaw
         ? (typeof pinnedRaw === "string" ? JSON.parse(pinnedRaw) : pinnedRaw)
-        : await executeNode(node, $input, prisma);
+        : await executeNode(node, $input, prisma, executionDepth);
+      // Spill large outputs to disk; store ref or value in the outputs map
+      const output = await storePayload(executionId, nodeId, rawOutput);
       outputs[nodeId] = output;
       nodeStatus[nodeId] = "done";
 
-      await pub(publisher, executionId, { type: "node-finished", nodeId, nodeType, output });
+      await pub(publisher, executionId, { type: "node-finished", nodeId, nodeType, output: payloadSummary(output) });
       await prisma.executionNodeLog.update({
         where: { id: logEntry.id },
-        data: { status: "SUCCESS", output: output as object, finishedAt: new Date() },
+        data: { status: "SUCCESS", output: payloadSummary(rawOutput) as object, finishedAt: new Date() },
       });
 
       // Determine active routing handle (IF branch / Switch)
