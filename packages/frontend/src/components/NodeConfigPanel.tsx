@@ -1458,6 +1458,48 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* Sort Node */}
+            {nodeType === "sort" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Sort Field (dot-path, blank = whole item)</label>
+                  <input className={inputCls} value={(local.sortField as string) || ""} onChange={(e) => patch({ sortField: e.target.value })} placeholder="createdAt" />
+                </div>
+                <div>
+                  <label className={labelCls}>Direction</label>
+                  <select className={inputCls} value={(local.direction as string) || "asc"} onChange={(e) => patch({ direction: e.target.value })}>
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Limit Node */}
+            {nodeType === "limit" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Max Items</label>
+                  <input className={inputCls} type="number" min={1} value={(local.maxItems as string) || "10"} onChange={(e) => patch({ maxItems: e.target.value })} placeholder="10" />
+                </div>
+                <div>
+                  <label className={labelCls}>Keep From</label>
+                  <select className={inputCls} value={(local.keepFrom as string) || "start"} onChange={(e) => patch({ keepFrom: e.target.value })}>
+                    <option value="start">Start of array</option>
+                    <option value="end">End of array</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">

@@ -29,6 +29,8 @@ import { executeSlack } from "./slack";
 import { executeXml } from "./xml";
 import { executeRss } from "./rss";
 import { executeDeduplicate } from "./deduplicate";
+import { executeSort } from "./sort";
+import { executeLimit } from "./limit";
 
 interface NodeDef {
   id: string;
@@ -110,6 +112,10 @@ export async function executeNode(
       return executeRss(node, $input);
     case "deduplicate":
       return executeDeduplicate(node, $input);
+    case "sort":
+      return executeSort(node, $input);
+    case "limit":
+      return executeLimit(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

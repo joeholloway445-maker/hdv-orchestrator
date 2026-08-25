@@ -120,6 +120,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "xml", label: "XML", color: "bg-lime-700", description: "Parse or stringify XML", category: "Data" },
   { type: "rss", label: "RSS / Atom", color: "bg-orange-600", description: "Fetch and parse RSS/Atom feed", category: "Data" },
   { type: "deduplicate", label: "Deduplicate", color: "bg-teal-700", description: "Remove duplicate items from an array", category: "Data" },
+  { type: "sort", label: "Sort", color: "bg-cyan-700", description: "Sort array items by a field or value", category: "Data" },
+  { type: "limit", label: "Limit", color: "bg-indigo-700", description: "Cap array to a maximum number of items", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
