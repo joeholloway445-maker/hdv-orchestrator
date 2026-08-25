@@ -122,6 +122,7 @@ export const NODE_TYPE_CONFIG = [
   { type: "deduplicate", label: "Deduplicate", color: "bg-teal-700", description: "Remove duplicate items from an array", category: "Data" },
   { type: "sort", label: "Sort", color: "bg-cyan-700", description: "Sort array items by a field or value", category: "Data" },
   { type: "limit", label: "Limit", color: "bg-indigo-700", description: "Cap array to a maximum number of items", category: "Data" },
+  { type: "renameKeys", label: "Rename Keys", color: "bg-violet-700", description: "Rename or move fields using dot-path mappings", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 

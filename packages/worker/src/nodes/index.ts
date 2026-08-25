@@ -31,6 +31,7 @@ import { executeRss } from "./rss";
 import { executeDeduplicate } from "./deduplicate";
 import { executeSort } from "./sort";
 import { executeLimit } from "./limit";
+import { executeRenameKeys } from "./renameKeys";
 
 interface NodeDef {
   id: string;
@@ -116,6 +117,8 @@ export async function executeNode(
       return executeSort(node, $input);
     case "limit":
       return executeLimit(node, $input);
+    case "renameKeys":
+      return executeRenameKeys(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

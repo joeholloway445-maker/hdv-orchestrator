@@ -1500,6 +1500,52 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* Rename Keys Node */}
+            {nodeType === "renameKeys" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Key Mappings</label>
+                  <button
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                    onClick={() => patch({ mappings: [...((local.mappings as Array<{ from: string; to: string }>) || []), { from: "", to: "" }] })}
+                  >+ Add</button>
+                </div>
+                {((local.mappings as Array<{ from: string; to: string }>) || []).map((m, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="old.key"
+                      value={m.from}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
+                        n[i] = { ...n[i], from: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <span className="text-gray-400 text-xs">→</span>
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="new.key"
+                      value={m.to}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
+                        n[i] = { ...n[i], to: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <button
+                      className="text-gray-500 hover:text-red-400 px-1 text-sm"
+                      onClick={() => patch({ mappings: ((local.mappings as Array<{ from: string; to: string }>) || []).filter((_, j) => j !== i) })}
+                    >×</button>
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                  <input type="checkbox" checked={local.removeOldKeys !== false} onChange={(e) => patch({ removeOldKeys: e.target.checked })} className="accent-blue-500" />
+                  <span className="text-xs text-gray-300">Remove original keys</span>
+                </label>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">
