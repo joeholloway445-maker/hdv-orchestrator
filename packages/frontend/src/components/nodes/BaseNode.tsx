@@ -1,7 +1,7 @@
 import { Handle, Position } from "reactflow";
 
 interface Props {
-  data: { label?: string; cases?: Array<{ value: string; output: string }>; [key: string]: unknown };
+  data: { label?: string; cases?: Array<{ value: string; output: string }>; _status?: string; _outputPreview?: string; [key: string]: unknown };
   selected?: boolean;
   color: string;
   icon: string;
@@ -12,6 +12,13 @@ interface Props {
   hasSwitchOutputs?: boolean;
   hasErrorOutput?: boolean;
 }
+
+const STATUS_DOT: Record<string, string> = {
+  running: "bg-blue-400 animate-pulse",
+  success: "bg-green-400",
+  error: "bg-red-400",
+  skipped: "bg-gray-500",
+};
 
 export function BaseNode({
   data,
@@ -36,6 +43,8 @@ export function BaseNode({
     : hasOutput ? 1
     : 0;
 
+  const statusDot = data._status ? STATUS_DOT[data._status] : null;
+
   return (
     <div
       className={`rounded-xl shadow-lg border-2 transition-all ${selected ? "border-white" : "border-transparent"} ${color}`}
@@ -48,8 +57,16 @@ export function BaseNode({
       <div className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-lg">{icon}</span>
-          <span className="text-white font-semibold text-sm truncate">{data.label || "Node"}</span>
+          <span className="text-white font-semibold text-sm truncate flex-1">{data.label || "Node"}</span>
+          {statusDot && (
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDot}`} title={data._status} />
+          )}
         </div>
+        {data._outputPreview && (
+          <div className="mt-1.5 text-xs text-white/60 font-mono truncate max-w-[140px]" title={data._outputPreview as string}>
+            {data._outputPreview}
+          </div>
+        )}
       </div>
 
       {/* Default single output */}

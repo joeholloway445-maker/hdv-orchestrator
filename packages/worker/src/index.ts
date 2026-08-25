@@ -28,7 +28,7 @@ const worker = new Worker(
 
     await prisma.execution.update({
       where: { id: executionId },
-      data: { status: "RUNNING" },
+      data: { status: "RUNNING", data: { triggerData } },
     });
 
     try {
@@ -56,7 +56,7 @@ const worker = new Worker(
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
-          data: { ...finalOutputs as object, ...(webhookResponse ? { webhookResponse } : {}) },
+          data: { triggerData, outputs: finalOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
         },
       });
     } catch (error: unknown) {
@@ -64,7 +64,7 @@ const worker = new Worker(
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
       await prisma.execution.update({
         where: { id: executionId },
-        data: { status: "FAILED", finishedAt: new Date(), data: { error: msg } },
+        data: { status: "FAILED", finishedAt: new Date(), data: { triggerData, error: msg } },
       });
       await publisher.publish(
         "workflow:telemetry",

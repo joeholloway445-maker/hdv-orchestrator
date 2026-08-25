@@ -74,7 +74,7 @@ interface NodeLog {
   finishedAt?: string;
 }
 
-type NodeStatus = "running" | "success" | "error";
+type NodeStatus = "running" | "success" | "error" | "skipped";
 
 export const NODE_TYPE_CONFIG = [
   // Triggers
@@ -122,6 +122,7 @@ function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
     running: "0 0 0 3px #facc15",
     success: "0 0 0 3px #4ade80",
     error: "0 0 0 3px #f87171",
+    skipped: "0 0 0 3px #6b7280",
   };
   return { boxShadow: ring[status] };
 }
@@ -231,8 +232,20 @@ export function EditorPage() {
       setNodes((wf.nodes as Node<NodeData>[]) || []);
       setEdges((wf.edges as Edge[]) || []);
     });
-    api.get(`/executions/workflow/${id}`).then(({ data }) => {
-      setExecutions(data as ExecutionRecord[]);
+    api.get(`/executions/workflow/${id}`).then(async ({ data }) => {
+      const execs = data as ExecutionRecord[];
+      setExecutions(execs);
+      // Load node logs from most recent finished execution for output overlays
+      const lastFinished = execs.find((e) => e.status === "SUCCESS" || e.status === "FAILED");
+      if (lastFinished) {
+        const { data: detail } = await api.get(`/executions/${lastFinished.id}`);
+        setNodeLogs((detail as { nodeLogs: NodeLog[] }).nodeLogs || []);
+        const statuses: Record<string, NodeStatus> = {};
+        for (const log of (detail as { nodeLogs: NodeLog[] }).nodeLogs) {
+          statuses[log.nodeId] = log.status.toLowerCase() as NodeStatus;
+        }
+        setNodeStatuses(statuses);
+      }
     });
     api.get("/workflows").then(({ data }) => {
       setAllWorkflows((data as WorkflowRecord[]).map((w) => ({ id: w.id, name: w.name })));
@@ -437,10 +450,22 @@ export function EditorPage() {
     ? nodeLogs.find((l) => l.nodeId === selectedNode.id) ?? null
     : null;
 
-  const displayNodes = nodes.map((n) => ({
-    ...n,
-    style: { ...n.style, ...nodeStyle(nodeStatuses[n.id]) },
-  }));
+  const displayNodes = nodes.map((n) => {
+    const status = nodeStatuses[n.id];
+    const log = nodeLogs.find((l) => l.nodeId === n.id);
+    const outputPreview = log?.output !== undefined
+      ? JSON.stringify(log.output).slice(0, 60)
+      : undefined;
+    return {
+      ...n,
+      style: { ...n.style, ...nodeStyle(status) },
+      data: {
+        ...n.data,
+        _status: status ?? (log?.status?.toLowerCase()),
+        _outputPreview: outputPreview,
+      },
+    };
+  });
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
