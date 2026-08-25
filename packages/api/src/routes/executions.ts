@@ -18,14 +18,14 @@ router.get("/", async (req: AuthRequest, res) => {
     where: { userId: req.userId!, ...(workflowIdFilter ? { id: workflowIdFilter } : {}) },
     select: { id: true },
   });
-  const workflowIds = workflows.map((w) => w.id);
+  const workflowIds = workflows.map((w: { id: string }) => w.id);
 
   const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
   if (cursor) where.id = { lt: cursor };
   if (statusFilter) where.status = statusFilter;
 
   const executions = await prisma.execution.findMany({
-    where: where as Parameters<typeof prisma.execution.findMany>[0]["where"],
+    where: where as never,
     orderBy: { startedAt: "desc" },
     take: limit,
     include: { workflow: { select: { id: true, name: true } } },
@@ -71,7 +71,7 @@ router.delete("/", async (req: AuthRequest, res) => {
     where: { userId: req.userId! },
     select: { id: true },
   });
-  const workflowIds = workflows.map((w) => w.id);
+  const workflowIds = workflows.map((w: { id: string }) => w.id);
 
   const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
 
@@ -84,7 +84,7 @@ router.delete("/", async (req: AuthRequest, res) => {
     where.startedAt = { lt: cutoff };
   }
 
-  const { count } = await prisma.execution.deleteMany({ where: where as Parameters<typeof prisma.execution.deleteMany>[0]["where"] });
+  const { count } = await prisma.execution.deleteMany({ where: where as never });
   res.json({ deleted: count });
 });
 

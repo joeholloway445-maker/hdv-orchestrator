@@ -116,11 +116,11 @@ async function recoverOrphans(prisma: PrismaClient, queue: Queue): Promise<void>
     activeJobs.map((j) => j.data?.executionId as string | undefined).filter(Boolean),
   );
 
-  const orphans = stale.filter((e) => !activeExecutionIds.has(e.id));
+  const orphans = stale.filter((e: { id: string }) => !activeExecutionIds.has(e.id));
   if (orphans.length === 0) return;
 
   await prisma.execution.updateMany({
-    where: { id: { in: orphans.map((e) => e.id) } },
+    where: { id: { in: orphans.map((e: { id: string }) => e.id) } },
     data: {
       status: "FAILED",
       finishedAt: new Date(),

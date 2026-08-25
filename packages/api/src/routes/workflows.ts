@@ -243,9 +243,9 @@ router.get("/:id/stats", async (req: AuthRequest, res) => {
     select: { startedAt: true, finishedAt: true },
   });
   const durations = recentSuccessful
-    .filter((e) => e.finishedAt)
-    .map((e) => new Date(e.finishedAt!).getTime() - new Date(e.startedAt).getTime());
-  const avgDurationMs = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+    .filter((e: { finishedAt: Date | null; startedAt: Date }) => e.finishedAt)
+    .map((e: { finishedAt: Date | null; startedAt: Date }) => new Date(e.finishedAt!).getTime() - new Date(e.startedAt).getTime());
+  const avgDurationMs = durations.length > 0 ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length : null;
 
   res.json({
     total,
