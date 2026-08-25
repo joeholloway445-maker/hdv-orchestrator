@@ -24,13 +24,15 @@ interface Options {
   triggerData: Record<string, unknown>;
   publisher: IORedis;
   prisma: PrismaClient;
+  /** If set, successful node outputs from this prior execution seed the checkpoint cache. */
+  checkpointExecutionId?: string;
 }
 
 async function pub(publisher: IORedis, executionId: string, event: Record<string, unknown>) {
   await publisher.publish("workflow:telemetry", JSON.stringify({ executionId, ...event }));
 }
 
-export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }: Options) {
+export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId }: Options) {
   const nodes = workflow.nodes as RawNode[];
   const edges = workflow.edges as RawEdge[];
 
@@ -55,6 +57,29 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
   for (const node of nodes) nodeStatus[node.id] = "pending";
 
   const launched = new Set<string>();
+
+  // Checkpoint: pre-seed outputs from a prior execution's successful node logs.
+  // Nodes with spilled outputs (stub only in DB) are left pending so they re-run.
+  if (checkpointExecutionId) {
+    const checkpointLogs = await prisma.executionNodeLog.findMany({
+      where: { executionId: checkpointExecutionId, status: "SUCCESS" },
+    });
+    for (const log of checkpointLogs) {
+      const out = log.output as unknown;
+      if (out && typeof out === "object" && (out as Record<string, unknown>)._spilled === true) {
+        // Can't restore spilled payload after cleanup — let this node re-run
+        continue;
+      }
+      if (nodeStatus[log.nodeId] !== undefined) {
+        outputs[log.nodeId] = out;
+        nodeStatus[log.nodeId] = "done";
+        launched.add(log.nodeId);
+      }
+    }
+    if (checkpointLogs.length > 0) {
+      console.log(`[DAG] Checkpoint restored ${Object.keys(outputs).length} node(s) from execution ${checkpointExecutionId}`);
+    }
+  }
 
   function isReady(nodeId: string): boolean {
     return parents[nodeId].every((pid) => nodeStatus[pid] === "done" || nodeStatus[pid] === "skipped");

@@ -21,10 +21,11 @@ const publisher = new IORedis(process.env.REDIS_URL || "redis://localhost:6379",
 const worker = new Worker(
   "workflow-execution",
   async (job) => {
-    const { workflowId, executionId, triggerData } = job.data as {
+    const { workflowId, executionId, triggerData, checkpointExecutionId } = job.data as {
       workflowId: string;
       executionId: string;
       triggerData: Record<string, unknown>;
+      checkpointExecutionId?: string;
     };
 
     console.log(`[Worker] Execution ${executionId} — workflow ${workflowId}`);
@@ -54,7 +55,7 @@ const worker = new Worker(
         setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
       );
       const finalOutputs = await Promise.race([
-        executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }),
+        executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId }),
         timeoutPromise,
       ]);
 

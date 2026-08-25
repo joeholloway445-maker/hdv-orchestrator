@@ -117,7 +117,13 @@ router.post("/:id/retry", async (req: AuthRequest, res) => {
   const fresh = await prisma.execution.create({
     data: { workflowId: original.workflowId, status: "PENDING" },
   });
-  await enqueueWorkflow({ workflowId: original.workflowId, executionId: fresh.id, triggerData: triggerData as Record<string, unknown> });
+  await enqueueWorkflow({
+    workflowId: original.workflowId,
+    executionId: fresh.id,
+    triggerData: triggerData as Record<string, unknown>,
+    // Resume from the failed execution's successful node outputs
+    checkpointExecutionId: original.id,
+  });
   res.status(201).json(fresh);
 });
 

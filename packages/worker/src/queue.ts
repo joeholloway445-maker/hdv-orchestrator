@@ -11,6 +11,7 @@ export interface WorkflowJob {
   workflowId: string;
   executionId: string;
   triggerData: Record<string, unknown>;
+  checkpointExecutionId?: string;
 }
 
 export async function enqueueWorkflow(job: WorkflowJob) {

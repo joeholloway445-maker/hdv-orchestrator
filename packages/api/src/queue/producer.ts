@@ -11,6 +11,8 @@ export interface WorkflowJob {
   workflowId: string;
   executionId: string;
   triggerData: Record<string, unknown>;
+  /** When set, successful node outputs from this prior execution are used as checkpoints. */
+  checkpointExecutionId?: string;
 }
 
 export async function enqueueWorkflow(job: WorkflowJob) {
