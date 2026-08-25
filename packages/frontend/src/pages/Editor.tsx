@@ -153,6 +153,7 @@ export function EditorPage() {
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
   const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
   const [quickAddSearch, setQuickAddSearch] = useState("");
+  const [stats, setStats] = useState<{ total: number; successRate: number | null; avgDurationMs: number | null } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -252,8 +253,12 @@ export function EditorPage() {
       }
     });
     api.get("/workflows").then(({ data }) => {
-      setAllWorkflows((data as WorkflowRecord[]).map((w) => ({ id: w.id, name: w.name })));
+      const list = Array.isArray(data) ? data : ((data as { items?: WorkflowRecord[] }).items ?? []);
+      setAllWorkflows(list.map((w: WorkflowRecord) => ({ id: w.id, name: w.name })));
     });
+    api.get(`/workflows/${id}/stats`).then(({ data }) => {
+      setStats(data as { total: number; successRate: number | null; avgDurationMs: number | null });
+    }).catch(() => {});
   }, [id]);
 
   useEffect(() => {
@@ -542,6 +547,21 @@ export function EditorPage() {
           value={workflow?.name || ""}
           onChange={(e) => setWorkflow((w) => (w ? { ...w, name: e.target.value } : w))}
         />
+        {stats && stats.total > 0 && (
+          <div className="flex items-center gap-3 text-xs text-gray-500 shrink-0">
+            <span title="Total executions">{stats.total} runs</span>
+            {stats.successRate !== null && (
+              <span title="Success rate" className={stats.successRate >= 80 ? "text-green-400" : stats.successRate >= 50 ? "text-yellow-400" : "text-red-400"}>
+                {stats.successRate}% ok
+              </span>
+            )}
+            {stats.avgDurationMs !== null && (
+              <span title="Average duration">
+                avg {stats.avgDurationMs >= 1000 ? `${(stats.avgDurationMs / 1000).toFixed(1)}s` : `${stats.avgDurationMs}ms`}
+              </span>
+            )}
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <button
             onClick={importWorkflow}

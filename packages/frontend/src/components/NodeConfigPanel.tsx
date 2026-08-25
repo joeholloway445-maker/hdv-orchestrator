@@ -430,17 +430,18 @@ export function NodeConfigPanel({
                     <option value="apikey">API Key (header)</option>
                     <option value="basic">Basic Auth (user:pass)</option>
                     <option value="bearer">Bearer Token</option>
+                    <option value="hmac">HMAC-SHA256 (GitHub-compatible)</option>
                   </select>
                 </div>
-                {local.authType === "apikey" && (
+                {(local.authType === "apikey" || local.authType === "hmac") && (
                   <div className="mt-2">
-                    <label className={labelCls}>Header Name</label>
-                    <input className={inputCls} value={(local.authHeaderName as string) || "X-API-Key"} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder="X-API-Key" />
+                    <label className={labelCls}>{local.authType === "hmac" ? "Signature Header" : "Header Name"}</label>
+                    <input className={inputCls} value={(local.authHeaderName as string) || (local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key")} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder={local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key"} />
                   </div>
                 )}
                 {local.authType && local.authType !== "none" && (
                   <div className="mt-2">
-                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : "Secret Value"}</label>
+                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : local.authType === "hmac" ? "HMAC Secret" : "Secret Value"}</label>
                     <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={local.authType === "basic" ? "username:password" : "secret"} />
                   </div>
                 )}
@@ -640,6 +641,8 @@ export function NodeConfigPanel({
                 { v: "notContains", l: "does not contain" },
                 { v: "startsWith", l: "starts with" },
                 { v: "endsWith", l: "ends with" },
+                { v: "matches", l: "~ matches regex" },
+                { v: "notMatches", l: "!~ does not match regex" },
                 { v: "gt", l: "> greater than" },
                 { v: "lt", l: "< less than" },
                 { v: "gte", l: "≥ ≥" },
@@ -764,6 +767,7 @@ export function NodeConfigPanel({
                 { v: "equals", l: "= equals" }, { v: "notEquals", l: "≠ not equals" },
                 { v: "contains", l: "contains" }, { v: "notContains", l: "does not contain" },
                 { v: "startsWith", l: "starts with" }, { v: "endsWith", l: "ends with" },
+                { v: "matches", l: "~ matches regex" }, { v: "notMatches", l: "!~ does not match regex" },
                 { v: "gt", l: "> greater than" }, { v: "lt", l: "< less than" },
                 { v: "gte", l: "≥ ≥" }, { v: "lte", l: "≤ ≤" },
                 { v: "exists", l: "exists" }, { v: "notExists", l: "does not exist" },

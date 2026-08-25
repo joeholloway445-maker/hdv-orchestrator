@@ -6,20 +6,26 @@ import { enqueueWorkflow } from "../queue/producer";
 const router = Router();
 const prisma = new PrismaClient();
 
-// All executions for this user (paginated)
+// All executions for this user (paginated, filterable)
 router.get("/", async (req: AuthRequest, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const cursor = req.query.cursor as string | undefined;
+  const statusFilter = req.query.status as string | undefined;
+  const workflowIdFilter = req.query.workflowId as string | undefined;
 
   // Get all workflow IDs for this user first
   const workflows = await prisma.workflow.findMany({
-    where: { userId: req.userId! },
+    where: { userId: req.userId!, ...(workflowIdFilter ? { id: workflowIdFilter } : {}) },
     select: { id: true },
   });
   const workflowIds = workflows.map((w) => w.id);
 
+  const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
+  if (cursor) where.id = { lt: cursor };
+  if (statusFilter) where.status = statusFilter;
+
   const executions = await prisma.execution.findMany({
-    where: { workflowId: { in: workflowIds }, ...(cursor ? { id: { lt: cursor } } : {}) },
+    where: where as Parameters<typeof prisma.execution.findMany>[0]["where"],
     orderBy: { startedAt: "desc" },
     take: limit,
     include: { workflow: { select: { id: true, name: true } } },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuthStore } from "../store/auth";
@@ -19,6 +19,8 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -42,21 +44,32 @@ export function DashboardPage() {
     input.click();
   }
 
-  useEffect(() => {
-    api.get("/workflows").then(({ data }) => {
+  function fetchWorkflows(s: string, tag: string, active: string) {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (s) params.set("search", s);
+    if (tag) params.set("tag", tag);
+    if (active) params.set("active", active);
+    api.get(`/workflows?${params.toString()}`).then(({ data }) => {
       const list = Array.isArray(data) ? data : ((data as { items?: Workflow[] }).items ?? []);
       setWorkflows(list as Workflow[]);
       setLoading(false);
     });
-  }, []);
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchWorkflows(search, tagFilter, activeFilter), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search, tagFilter, activeFilter]);
 
   async function createWorkflow() {
     const { data } = await api.post("/workflows", { name: "Untitled Workflow" });
     navigate(`/workflow/${(data as Workflow).id}`);
   }
 
-  async function duplicateWorkflow(id: string) {
-    const { data } = await api.post(`/workflows/${id}/duplicate`);
+  async function duplicateWorkflow(wfId: string) {
+    const { data } = await api.post(`/workflows/${wfId}/duplicate`);
     setWorkflows((prev) => [data as Workflow, ...prev]);
   }
 
@@ -169,19 +182,24 @@ export function DashboardPage() {
             value={tagFilter}
             onChange={(e) => setTagFilter(e.target.value)}
           />
+          <select
+            className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 text-sm"
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+          >
+            <option value="">All statuses</option>
+            <option value="true">Active only</option>
+            <option value="false">Inactive only</option>
+          </select>
         </div>
 
         {loading ? (
           <div className="text-gray-500">Loading...</div>
         ) : (() => {
-          const q = search.toLowerCase();
-          const filtered = workflows.filter((w) =>
-            (!q || w.name.toLowerCase().includes(q) || w.description?.toLowerCase().includes(q)) &&
-            (!tagFilter.trim() || w.tags?.some((t) => t.toLowerCase().includes(tagFilter.toLowerCase())))
-          );
+          const filtered = workflows;
           return filtered.length === 0 ? (
             <div className="text-center py-24 text-gray-500">
-              {search || tagFilter ? (
+              {search || tagFilter || activeFilter ? (
                 <p className="text-lg">No workflows match your filters</p>
               ) : (
                 <>

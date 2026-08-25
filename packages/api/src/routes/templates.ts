@@ -167,6 +167,78 @@ const TEMPLATES = [
       { id: "e3", source: "n3", target: "n4" },
     ],
   },
+  {
+    id: "batch-process",
+    name: "Batch Processing Pipeline",
+    description: "Fetches a large list, splits it into chunks of 10, processes each batch with an HTTP call, then aggregates results.",
+    tags: ["batch", "loop", "data"],
+    nodes: [
+      { id: "n1", type: "manualTrigger", position: { x: 60, y: 200 }, data: { label: "Start", nodeType: "manualTrigger", testData: '{"url": "https://jsonplaceholder.typicode.com/todos"}' } },
+      { id: "n2", type: "httpRequest", position: { x: 260, y: 200 }, data: { label: "Fetch List", nodeType: "httpRequest", method: "GET", url: "https://jsonplaceholder.typicode.com/todos" } },
+      { id: "n3", type: "set", position: { x: 460, y: 200 }, data: { label: "Wrap Array", nodeType: "set", mappings: [{ key: "items", value: "{{$input.body}}" }] } },
+      { id: "n4", type: "splitBatches", position: { x: 660, y: 200 }, data: { label: "Split 10", nodeType: "splitBatches", arrayKey: "items", batchSize: "10", outputKey: "batch" } },
+      { id: "n5", type: "aggregate", position: { x: 860, y: 200 }, data: { label: "Collect Results", nodeType: "aggregate", arrayKey: "batch", outputKey: "processed" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n4", target: "n5" },
+    ],
+  },
+  {
+    id: "ai-content-moderation",
+    name: "AI Content Moderation",
+    description: "Receives user-submitted content via webhook, checks it with AI for safety, and routes to approve or reject.",
+    tags: ["ai", "webhook", "moderation"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 250 }, data: { label: "Submit Content", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "ai", position: { x: 280, y: 250 }, data: { label: "Moderate", nodeType: "ai", model: "claude-haiku-4-5-20251001", systemPrompt: "You are a content moderator. Review the text and reply with exactly one word: SAFE or UNSAFE.", userPrompt: "{{$input.body.content}}", maxTokens: "5" } },
+      { id: "n3", type: "ifBranch", position: { x: 500, y: 250 }, data: { label: "Safe?", nodeType: "ifBranch", conditions: [{ field: "aiText", operator: "equals", value: "SAFE" }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 100 }, data: { label: "Approved", nodeType: "respond", statusCode: "200", responseBody: '{"approved": true}' } },
+      { id: "n5", type: "respond", position: { x: 720, y: 400 }, data: { label: "Rejected", nodeType: "respond", statusCode: "422", responseBody: '{"approved": false, "reason": "Content flagged by moderation"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4", sourceHandle: "true", label: "true" },
+      { id: "e4", source: "n3", target: "n5", sourceHandle: "false", label: "false" },
+    ],
+  },
+  {
+    id: "scheduled-db-report",
+    name: "Scheduled DB Report → Slack",
+    description: "Runs a database query on a schedule, formats the result with AI, and posts a summary to Slack.",
+    tags: ["schedule", "database", "slack", "ai"],
+    nodes: [
+      { id: "n1", type: "scheduleTrigger", position: { x: 60, y: 200 }, data: { label: "Daily 9am", nodeType: "scheduleTrigger", cronExpression: "0 9 * * *" } },
+      { id: "n2", type: "database", position: { x: 280, y: 200 }, data: { label: "Query Stats", nodeType: "database", dialect: "postgres", host: "localhost", port: "5432", database: "mydb", user: "postgres", query: "SELECT status, COUNT(*) as count FROM orders WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY status", operation: "query" } },
+      { id: "n3", type: "ai", position: { x: 500, y: 200 }, data: { label: "Format Report", nodeType: "ai", model: "claude-haiku-4-5-20251001", systemPrompt: "You create concise Slack-friendly business summaries. Use bullet points and emojis.", userPrompt: "Summarize this daily order report in 3-5 bullet points for the team Slack channel:\n\n{{$input.rows}}", maxTokens: "256" } },
+      { id: "n4", type: "slack", position: { x: 720, y: 200 }, data: { label: "Post to Slack", nodeType: "slack", webhookUrl: "", text: "📊 *Daily Orders Report*\n\n{{$input.aiText}}", username: "ReportBot", iconEmoji: ":bar_chart:" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "regex-filter-enrich",
+    name: "Regex Filter & Enrich",
+    description: "Receives a list via webhook, filters items by regex pattern, enriches each match with an HTTP lookup, and responds.",
+    tags: ["filter", "regex", "http", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "filter", position: { x: 280, y: 200 }, data: { label: "Filter by Email Pattern", nodeType: "filter", arrayKey: "body.users", conditions: [{ field: "email", operator: "matches", value: "^[a-z0-9._%+\\-]+@example\\.com$" }] } },
+      { id: "n3", type: "transform", position: { x: 500, y: 200 }, data: { label: "Shape", nodeType: "transform", keepInput: false, mappings: [{ key: "matched", value: "{{$input.body.users}}" }, { key: "count", value: "{{$input._filterCount}}" }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
 ];
 
 // GET /templates — public list
