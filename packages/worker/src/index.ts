@@ -6,6 +6,7 @@ import { executeWorkflow } from "./engine/dag";
 import { startScheduler } from "./scheduler";
 import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
+import { cleanupPayloads, payloadSummary } from "./lib/payload";
 
 const prisma = new PrismaClient();
 
@@ -64,14 +65,20 @@ const worker = new Worker(
         if (wr) { webhookResponse = wr; break; }
       }
 
+      // Summarize final outputs to avoid writing large blobs into the execution row
+      const summaryOutputs = Object.fromEntries(
+        Object.entries(finalOutputs).map(([k, v]) => [k, payloadSummary(v)])
+      );
+
       await prisma.execution.update({
         where: { id: executionId },
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
-          data: { triggerData, outputs: finalOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
+          data: { triggerData, outputs: summaryOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
         },
       });
+      await cleanupPayloads(executionId);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
@@ -79,6 +86,7 @@ const worker = new Worker(
         where: { id: executionId },
         data: { status: "FAILED", finishedAt: new Date(), data: { triggerData, error: msg } },
       });
+      await cleanupPayloads(executionId);
       await publisher.publish(
         "workflow:telemetry",
         JSON.stringify({ type: "execution-failed", executionId, error: msg })
