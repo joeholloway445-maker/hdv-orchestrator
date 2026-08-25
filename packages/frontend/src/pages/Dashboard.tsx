@@ -53,6 +53,12 @@ export function DashboardPage() {
             Variables
           </button>
           <button
+            onClick={() => navigate("/executions")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Executions
+          </button>
+          <button
             onClick={() => navigate("/credentials")}
             className="text-sm text-gray-400 hover:text-white transition"
           >

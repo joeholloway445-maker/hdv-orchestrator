@@ -6,6 +6,27 @@ import { enqueueWorkflow } from "../queue/producer";
 const router = Router();
 const prisma = new PrismaClient();
 
+// All executions for this user (paginated)
+router.get("/", async (req: AuthRequest, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
+  // Get all workflow IDs for this user first
+  const workflows = await prisma.workflow.findMany({
+    where: { userId: req.userId! },
+    select: { id: true },
+  });
+  const workflowIds = workflows.map((w) => w.id);
+
+  const executions = await prisma.execution.findMany({
+    where: { workflowId: { in: workflowIds }, ...(cursor ? { id: { lt: cursor } } : {}) },
+    orderBy: { startedAt: "desc" },
+    take: limit,
+    include: { workflow: { select: { id: true, name: true } } },
+  });
+  res.json(executions);
+});
+
 router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.workflowId, userId: req.userId! },

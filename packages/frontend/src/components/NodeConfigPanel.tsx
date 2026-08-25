@@ -35,6 +35,16 @@ interface NodeData {
   statusCode?: string;
   responseBody?: string;
   syncResponse?: boolean;
+  queryParams?: Array<{ key: string; value: string }>;
+  customHeaders?: Array<{ key: string; value: string }>;
+  apiKey?: string;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  maxTokens?: string;
+  temperature?: string;
+  baseUrl?: string;
+  text?: string;
   [key: string]: unknown;
 }
 
@@ -99,6 +109,8 @@ export function NodeConfigPanel({
 
   const mappings = local.mappings || [];
   const cases = local.cases || [];
+  const queryParams = local.queryParams || [];
+  const customHeaders = local.customHeaders || [];
 
   const inputCls = "w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
   const labelCls = "text-gray-400 text-xs mb-1 block";
@@ -232,6 +244,32 @@ export function NodeConfigPanel({
                 <div>
                   <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
                   <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
+                </div>
+                <div>
+                  <label className={labelCls}>Query Params</label>
+                  <div className="space-y-1">
+                    {queryParams.map((p, i) => (
+                      <div key={i} className="flex gap-1">
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="key" value={p.key} onChange={(e) => { const n = [...queryParams]; n[i] = { ...n[i], key: e.target.value }; patch({ queryParams: n }); }} />
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.value}}" value={p.value} onChange={(e) => { const n = [...queryParams]; n[i] = { ...n[i], value: e.target.value }; patch({ queryParams: n }); }} />
+                        <button onClick={() => patch({ queryParams: queryParams.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
+                      </div>
+                    ))}
+                    <button onClick={() => patch({ queryParams: [...queryParams, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add param</button>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Custom Headers</label>
+                  <div className="space-y-1">
+                    {customHeaders.map((h, i) => (
+                      <div key={i} className="flex gap-1">
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="Header-Name" value={h.key} onChange={(e) => { const n = [...customHeaders]; n[i] = { ...n[i], key: e.target.value }; patch({ customHeaders: n }); }} />
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="value" value={h.value} onChange={(e) => { const n = [...customHeaders]; n[i] = { ...n[i], value: e.target.value }; patch({ customHeaders: n }); }} />
+                        <button onClick={() => patch({ customHeaders: customHeaders.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
+                      </div>
+                    ))}
+                    <button onClick={() => patch({ customHeaders: [...customHeaders, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add header</button>
+                  </div>
                 </div>
                 {credentials.length > 0 && (
                   <>
@@ -439,6 +477,51 @@ export function NodeConfigPanel({
                   <input className={inputCls} value={(local.workflowId as string) || ""} onChange={(e) => patch({ workflowId: e.target.value })} placeholder="(optional)" />
                 </div>
               </>
+            )}
+
+            {/* AI / LLM */}
+            {nodeType === "ai" && (
+              <>
+                <div>
+                  <label className={labelCls}>Model</label>
+                  <input className={inputCls} value={local.model || "claude-haiku-4-5-20251001"} onChange={(e) => patch({ model: e.target.value })} placeholder="claude-haiku-4-5-20251001" />
+                </div>
+                <div>
+                  <label className={labelCls}>System Prompt (supports {`{{$input.field}}`})</label>
+                  <ExpressionInput multiline value={local.systemPrompt || ""} onChange={(v) => patch({ systemPrompt: v })} placeholder="You are a helpful assistant." className={inputCls + " resize-none"} />
+                </div>
+                <div>
+                  <label className={labelCls}>User Prompt (supports {`{{$input.field}}`})</label>
+                  <ExpressionInput multiline value={local.userPrompt || ""} onChange={(v) => patch({ userPrompt: v })} placeholder="Summarize this: {{$input.text}}" className={inputCls + " resize-none"} />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>Max Tokens</label>
+                    <input className={inputCls} type="number" min="1" max="8096" value={local.maxTokens || "1024"} onChange={(e) => patch({ maxTokens: e.target.value })} />
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>Temperature</label>
+                    <input className={inputCls} type="number" min="0" max="1" step="0.1" value={local.temperature ?? "1"} onChange={(e) => patch({ temperature: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>API Key (or set ANTHROPIC_API_KEY env)</label>
+                  <input className={inputCls} type="password" value={local.apiKey || ""} onChange={(e) => patch({ apiKey: e.target.value })} placeholder="sk-ant-..." />
+                </div>
+                <div>
+                  <label className={labelCls}>Base URL (optional, default: Anthropic)</label>
+                  <input className={inputCls} value={local.baseUrl || ""} onChange={(e) => patch({ baseUrl: e.target.value })} placeholder="https://api.anthropic.com" />
+                </div>
+                <p className="text-xs text-gray-500">Output: aiText, aiResult (JSON-parsed if valid), aiModel, aiUsage</p>
+              </>
+            )}
+
+            {/* Sticky Note */}
+            {nodeType === "stickyNote" && (
+              <div>
+                <label className={labelCls}>Note Text</label>
+                <textarea className={inputCls + " resize-none"} rows={6} value={(local.text as string) || ""} onChange={(e) => patch({ text: e.target.value })} placeholder="Add a note to describe this part of the workflow..." />
+              </div>
             )}
 
             <button onClick={() => onUpdate(local)} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium transition">
