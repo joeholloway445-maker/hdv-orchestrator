@@ -30,6 +30,7 @@ interface ExecutionDetail extends ExecutionRow {
 
 const STATUS_COLORS: Record<string, string> = {
   SUCCESS: "bg-green-900 text-green-300",
+  FAILED: "bg-red-900 text-red-300",
   ERROR: "bg-red-900 text-red-300",
   PENDING: "bg-yellow-900 text-yellow-300",
   RUNNING: "bg-blue-900 text-blue-300",
@@ -176,13 +177,15 @@ export function ExecutionsPage() {
   const [filter, setFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
       const { data } = await api.get("/executions?limit=100");
-      setExecutions(data as ExecutionRow[]);
+      const list = Array.isArray(data) ? data : ((data as { items?: ExecutionRow[] }).items ?? []);
+      setExecutions(list as ExecutionRow[]);
     } finally {
       setLoading(false);
     }
@@ -218,6 +221,18 @@ export function ExecutionsPage() {
       setExecutions((prev) => [fresh, ...prev]);
     } finally {
       setRetrying(null);
+    }
+  }
+
+  async function cancel(e: ExecutionRow, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    setCancelling(e.id);
+    try {
+      const { data } = await api.post(`/executions/${e.id}/cancel`);
+      const updated = data as ExecutionRow;
+      setExecutions((prev) => prev.map((x) => x.id === e.id ? { ...x, status: updated.status } : x));
+    } finally {
+      setCancelling(null);
     }
   }
 
@@ -345,6 +360,15 @@ export function ExecutionsPage() {
                       >
                         Logs
                       </button>
+                      {(e.status === "RUNNING" || e.status === "PENDING") && (
+                        <button
+                          className="text-xs text-orange-400 hover:underline disabled:opacity-50"
+                          disabled={cancelling === e.id}
+                          onClick={(ev) => cancel(e, ev)}
+                        >
+                          {cancelling === e.id ? "…" : "Cancel"}
+                        </button>
+                      )}
                       {(e.status === "FAILED" || e.status === "SUCCESS") && (
                         <button
                           className="text-xs text-yellow-400 hover:underline disabled:opacity-50"

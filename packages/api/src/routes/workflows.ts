@@ -213,4 +213,46 @@ router.post("/:id/test-node", async (req: AuthRequest, res) => {
   }
 });
 
+// ── Stats ──────────────────────────────────────────────────────────────────
+
+router.get("/:id/stats", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const [total, byStatus] = await Promise.all([
+    prisma.execution.count({ where: { workflowId: req.params.id } }),
+    prisma.execution.groupBy({
+      by: ["status"],
+      where: { workflowId: req.params.id },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const counts: Record<string, number> = {};
+  for (const row of byStatus) counts[row.status] = row._count._all;
+
+  const successRate = total > 0 ? ((counts["SUCCESS"] ?? 0) / total) * 100 : null;
+
+  // Compute average duration of successful executions (last 100)
+  const recentSuccessful = await prisma.execution.findMany({
+    where: { workflowId: req.params.id, status: "SUCCESS", finishedAt: { not: null } },
+    orderBy: { startedAt: "desc" },
+    take: 100,
+    select: { startedAt: true, finishedAt: true },
+  });
+  const durations = recentSuccessful
+    .filter((e) => e.finishedAt)
+    .map((e) => new Date(e.finishedAt!).getTime() - new Date(e.startedAt).getTime());
+  const avgDurationMs = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+
+  res.json({
+    total,
+    counts,
+    successRate: successRate !== null ? Math.round(successRate * 10) / 10 : null,
+    avgDurationMs: avgDurationMs !== null ? Math.round(avgDurationMs) : null,
+  });
+});
+
 export { router as workflowsRouter };
