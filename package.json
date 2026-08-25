@@ -13,7 +13,7 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "migrate": "npm run migrate -w packages/api",
-    "test": "node --require ts-node/register --test tests/security.test.ts tests/nodes.test.ts"
+    "test": "node --require ts-node/register --test tests/security.test.ts tests/nodes.test.ts tests/webhook_auth.test.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
