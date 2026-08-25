@@ -50,6 +50,8 @@ export async function executeHttpRequest(
     formFields?: KVPair[];
   };
   const timeoutMs = rawTimeout ? parseInt(String(rawTimeout), 10) : 30000;
+  const retryCount = node.data.retryCount ? parseInt(String(node.data.retryCount), 10) : 0;
+  const retryDelay = node.data.retryDelay ? parseInt(String(node.data.retryDelay), 10) : 1000;
 
   if (!url) throw new Error("HTTP Request node: url is required");
 
@@ -101,14 +103,26 @@ export async function executeHttpRequest(
     }
   }
 
-  const response = await axios({
+  const axiosConfig = {
     method,
     url: resolvedUrl,
     headers: resolvedHeaders,
     params: Object.keys(resolvedParams).length ? resolvedParams : undefined,
     data: resolvedBody,
     timeout: timeoutMs,
-  });
+  };
 
-  return { status: response.status, headers: response.headers, body: response.data };
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retryCount; attempt++) {
+    try {
+      const response = await axios(axiosConfig);
+      return { status: response.status, headers: response.headers, body: response.data };
+    } catch (err: unknown) {
+      lastError = err;
+      if (attempt < retryCount) {
+        await new Promise((r) => setTimeout(r, retryDelay * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
 }

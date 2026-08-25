@@ -49,6 +49,32 @@ router.post("/trigger/:webhookId", async (req, res) => {
 
   if (!targetWorkflow) return res.status(404).json({ error: "Webhook not found or workflow inactive" });
 
+  // Webhook auth check
+  const nodes2 = targetWorkflow.nodes as Array<{ type?: string; data?: Record<string, unknown> }>;
+  const triggerNode = nodes2.find(
+    (n) => (n.data?.nodeType === "webhookTrigger" || n.type === "webhookTrigger") && n.data?.webhookId === req.params.webhookId
+  );
+  const authType = triggerNode?.data?.authType as string | undefined;
+  if (authType && authType !== "none") {
+    if (authType === "apikey") {
+      const headerName = (triggerNode?.data?.authHeaderName as string) || "X-API-Key";
+      const expected = triggerNode?.data?.authValue as string | undefined;
+      const provided = req.headers[headerName.toLowerCase()] ?? req.query.apiKey;
+      if (!expected || provided !== expected) return res.status(401).json({ error: "Unauthorized" });
+    } else if (authType === "basic") {
+      const authHeader = req.headers.authorization || "";
+      const b64 = authHeader.replace(/^Basic\s+/i, "");
+      const decoded = Buffer.from(b64, "base64").toString("utf8");
+      const expected = triggerNode?.data?.authValue as string | undefined; // "user:pass"
+      if (!expected || decoded !== expected) return res.status(401).json({ error: "Unauthorized" });
+    } else if (authType === "bearer") {
+      const authHeader = req.headers.authorization || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const expected = triggerNode?.data?.authValue as string | undefined;
+      if (!expected || token !== expected) return res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+
   const execution = await prisma.execution.create({
     data: { workflowId: targetWorkflow.id, status: "PENDING" },
   });

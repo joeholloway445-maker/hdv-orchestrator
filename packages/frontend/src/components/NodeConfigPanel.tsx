@@ -236,6 +236,42 @@ export function NodeConfigPanel({
                   />
                   <span className="text-gray-300 text-xs">Sync response (hold HTTP until workflow finishes)</span>
                 </label>
+                <div className="mt-3">
+                  <label className={labelCls}>Authentication</label>
+                  <select className={inputCls} value={(local.authType as string) || "none"} onChange={(e) => patch({ authType: e.target.value })}>
+                    <option value="none">None</option>
+                    <option value="apikey">API Key (header)</option>
+                    <option value="basic">Basic Auth (user:pass)</option>
+                    <option value="bearer">Bearer Token</option>
+                  </select>
+                </div>
+                {local.authType === "apikey" && (
+                  <div className="mt-2">
+                    <label className={labelCls}>Header Name</label>
+                    <input className={inputCls} value={(local.authHeaderName as string) || "X-API-Key"} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder="X-API-Key" />
+                  </div>
+                )}
+                {local.authType && local.authType !== "none" && (
+                  <div className="mt-2">
+                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : "Secret Value"}</label>
+                    <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={local.authType === "basic" ? "username:password" : "secret"} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual Trigger */}
+            {nodeType === "manualTrigger" && (
+              <div>
+                <label className={labelCls}>Test Data (JSON)</label>
+                <textarea
+                  className={inputCls + " resize-none font-mono text-xs"}
+                  rows={5}
+                  value={(local.testData as string) || ""}
+                  onChange={(e) => patch({ testData: e.target.value })}
+                  placeholder={'{\n  "key": "value"\n}'}
+                />
+                <p className="text-xs text-gray-500 mt-1">Sent as trigger data when the workflow is executed manually.</p>
               </div>
             )}
 
@@ -290,9 +326,19 @@ export function NodeConfigPanel({
                     <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
                   </div>
                 )}
-                <div>
-                  <label className={labelCls}>Timeout (ms, default 30000)</label>
-                  <input className={inputCls} type="number" min="1000" max="300000" value={local.timeout || "30000"} onChange={(e) => patch({ timeout: e.target.value })} />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>Timeout (ms)</label>
+                    <input className={inputCls} type="number" min="1000" max="300000" value={local.timeout || "30000"} onChange={(e) => patch({ timeout: e.target.value })} />
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>Retries</label>
+                    <input className={inputCls} type="number" min="0" max="10" value={(local.retryCount as string) || "0"} onChange={(e) => patch({ retryCount: e.target.value })} />
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>Retry delay (ms)</label>
+                    <input className={inputCls} type="number" min="100" value={(local.retryDelay as string) || "1000"} onChange={(e) => patch({ retryDelay: e.target.value })} />
+                  </div>
                 </div>
                 <div>
                   <label className={labelCls}>Query Params</label>

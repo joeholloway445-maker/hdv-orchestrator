@@ -311,7 +311,13 @@ export function EditorPage() {
     setNodeLogs([]);
     setExecuting(true);
     setExecutionId(null);
-    const { data } = await api.post(`/workflows/${id}/execute`);
+    // Read testData from the manual trigger node if present
+    const manualNode = nodes.find((n) => (n.data?.nodeType || n.type) === "manualTrigger");
+    let triggerData: Record<string, unknown> = {};
+    if (manualNode?.data?.testData) {
+      try { triggerData = JSON.parse(manualNode.data.testData as string); } catch { /* ignore invalid JSON */ }
+    }
+    const { data } = await api.post(`/workflows/${id}/execute`, { data: triggerData });
     const execId = (data as { id: string }).id;
     setExecutionId(execId);
     setExecutions((prev) => [
