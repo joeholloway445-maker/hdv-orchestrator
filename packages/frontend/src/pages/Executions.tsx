@@ -174,6 +174,8 @@ function ExecutionDetailPanel({ execution, onClose, onNoteUpdate }: { execution:
 export function ExecutionsPage() {
   const [executions, setExecutions] = useState<ExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -183,11 +185,29 @@ export function ExecutionsPage() {
   async function load() {
     setLoading(true);
     try {
-      const { data } = await api.get("/executions?limit=100");
-      const list = Array.isArray(data) ? data : ((data as { items?: ExecutionRow[] }).items ?? []);
+      const { data } = await api.get("/executions?limit=50");
+      const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
+      const list = Array.isArray(payload) ? payload : (payload.items ?? []);
+      const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
       setExecutions(list as ExecutionRow[]);
+      setNextCursor(cursor);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await api.get(`/executions?limit=50&cursor=${nextCursor}`);
+      const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
+      const list = Array.isArray(payload) ? payload : (payload.items ?? []);
+      const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
+      setExecutions((prev) => [...prev, ...list as ExecutionRow[]]);
+      setNextCursor(cursor);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -318,6 +338,7 @@ export function ExecutionsPage() {
           <p className="text-gray-500">No executions found.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-800">
+
             <table className="w-full text-sm">
               <thead className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wide">
                 <tr>
@@ -389,6 +410,17 @@ export function ExecutionsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {nextCursor && !loading && (
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition disabled:opacity-50"
+            >
+              {loadingMore ? "Loading…" : "Load More"}
+            </button>
           </div>
         )}
       </div>
