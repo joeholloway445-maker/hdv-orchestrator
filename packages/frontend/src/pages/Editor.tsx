@@ -96,6 +96,9 @@ export const NODE_TYPE_CONFIG = [
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow" },
   { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
+  // AI & Annotation
+  { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic" },
+  { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
 ];
 
 function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {

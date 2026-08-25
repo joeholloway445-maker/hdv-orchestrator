@@ -12,6 +12,7 @@ import { executeSwitch } from "./switch";
 import { executeEmail } from "./email";
 import { executeSubWorkflow } from "./subWorkflow";
 import { executeRespond } from "./respond";
+import { executeAI } from "./ai";
 
 interface NodeDef {
   id: string;
@@ -58,6 +59,10 @@ export async function executeNode(
       return executeMemoryRead(node, $input, prisma!);
     case "memoryWrite":
       return executeMemoryWrite(node, $input, prisma!);
+    case "ai":
+      return executeAI(node, $input);
+    case "stickyNote":
+      return $input; // pass-through annotation node
     default:
       throw new Error(`Unknown node type: "${nodeType}"`);
   }

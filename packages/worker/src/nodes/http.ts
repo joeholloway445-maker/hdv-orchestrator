@@ -16,18 +16,31 @@ function interpolate(template: string, data: unknown): string {
   });
 }
 
+interface KVPair { key: string; value: string }
+
 export async function executeHttpRequest(
   node: NodeDef,
   $input: unknown,
   prisma?: PrismaClient,
 ): Promise<unknown> {
-  const { method = "GET", url, headers = {}, body, credentialId, credentialInject } = node.data as {
+  const {
+    method = "GET",
+    url,
+    headers = {},
+    body,
+    credentialId,
+    credentialInject,
+    queryParams = [],
+    customHeaders = [],
+  } = node.data as {
     method?: string;
     url?: string;
     headers?: Record<string, string>;
     body?: string;
     credentialId?: string;
     credentialInject?: "header" | "query" | "bearer";
+    queryParams?: KVPair[];
+    customHeaders?: KVPair[];
   };
 
   if (!url) throw new Error("HTTP Request node: url is required");
@@ -36,6 +49,16 @@ export async function executeHttpRequest(
   const resolvedBody = body ? JSON.parse(interpolate(body, $input)) : undefined;
 
   const resolvedHeaders: Record<string, string> = { ...headers };
+  // Apply custom headers with interpolation
+  for (const h of customHeaders) {
+    if (h.key) resolvedHeaders[interpolate(h.key, $input)] = interpolate(h.value, $input);
+  }
+
+  // Build query params
+  const resolvedParams: Record<string, string> = {};
+  for (const p of queryParams) {
+    if (p.key) resolvedParams[interpolate(p.key, $input)] = interpolate(p.value, $input);
+  }
 
   // Inject credential if configured
   if (credentialId && prisma) {
@@ -55,6 +78,7 @@ export async function executeHttpRequest(
     method,
     url: resolvedUrl,
     headers: resolvedHeaders,
+    params: Object.keys(resolvedParams).length ? resolvedParams : undefined,
     data: resolvedBody,
     timeout: 30000,
   });

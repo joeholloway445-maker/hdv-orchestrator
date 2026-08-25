@@ -6,6 +6,7 @@ import { EditorPage } from "./pages/Editor";
 import { MemoryPage } from "./pages/Memory";
 import { CredentialsPage } from "./pages/Credentials";
 import { VariablesPage } from "./pages/Variables";
+import { ExecutionsPage } from "./pages/Executions";
 import { useAuthStore } from "./store/auth";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <VariablesPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/executions"
+          element={
+            <PrivateRoute>
+              <ExecutionsPage />
             </PrivateRoute>
           }
         />

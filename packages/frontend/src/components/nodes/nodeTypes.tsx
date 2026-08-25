@@ -71,6 +71,24 @@ export const MemoryWriteNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-cyan-800" icon="💾" />
 );
 
+export const AiNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-purple-900" icon="🤖" hasErrorOutput />
+);
+
+export const StickyNoteNode = (props: NodeProps<ND>) => {
+  const label = props.data.label || "Note";
+  const text = (props.data.text as string) || "";
+  return (
+    <div
+      className="bg-yellow-200 text-yellow-900 rounded shadow-md p-3 min-w-[160px] max-w-[320px] text-sm"
+      style={{ border: "1px solid #ca8a04" }}
+    >
+      <div className="font-bold text-xs mb-1 uppercase tracking-wide opacity-60">{label}</div>
+      <div className="whitespace-pre-wrap break-words">{text || <span className="opacity-40 italic">Double-click to edit</span>}</div>
+    </div>
+  );
+};
+
 export const nodeTypes = {
   webhookTrigger: WebhookTriggerNode,
   manualTrigger: ManualTriggerNode,
@@ -89,4 +107,6 @@ export const nodeTypes = {
   respond: RespondNode,
   memoryRead: MemoryReadNode,
   memoryWrite: MemoryWriteNode,
+  ai: AiNode,
+  stickyNote: StickyNoteNode,
 };
