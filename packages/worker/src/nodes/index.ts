@@ -19,6 +19,8 @@ import { executeDatetime } from "./datetime";
 import { executeCrypto } from "./crypto";
 import { executeSplitBatches } from "./splitBatches";
 import { executeValidate } from "./validate";
+import { executeCSV } from "./csv";
+import { executeHtmlExtract } from "./html";
 
 interface NodeDef {
   id: string;
@@ -79,6 +81,10 @@ export async function executeNode(
       return executeSplitBatches(node, $input);
     case "validate":
       return executeValidate(node, $input);
+    case "csv":
+      return executeCSV(node, $input);
+    case "htmlExtract":
+      return executeHtmlExtract(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

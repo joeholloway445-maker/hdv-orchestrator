@@ -99,6 +99,14 @@ export const ValidateNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-red-700" icon="✓" hasErrorOutput />
 );
 
+export const CsvNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-green-700" icon="📊" />
+);
+
+export const HtmlExtractNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-orange-800" icon="🔍" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -138,5 +146,7 @@ export const nodeTypes = {
   crypto: CryptoNode,
   splitBatches: SplitBatchesNode,
   validate: ValidateNode,
+  csv: CsvNode,
+  htmlExtract: HtmlExtractNode,
   stickyNote: StickyNoteNode,
 };

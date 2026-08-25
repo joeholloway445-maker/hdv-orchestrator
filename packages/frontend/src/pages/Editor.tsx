@@ -106,6 +106,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
   { type: "validate", label: "Validate", color: "bg-red-700", description: "Validate field rules", category: "Utilities" },
+  { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
+  { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
@@ -139,6 +141,8 @@ export function EditorPage() {
   const [allWorkflows, setAllWorkflows] = useState<{ id: string; name: string }[]>([]);
   const [versions, setVersions] = useState<Array<{ id: string; name: string; createdAt: string }>>([]);
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
+  const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
+  const [quickAddSearch, setQuickAddSearch] = useState("");
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -307,6 +311,27 @@ export function EditorPage() {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
+
+  function onPaneDoubleClick(e: React.MouseEvent) {
+    if (!rfInstance || !wrapperRef.current) return;
+    const bounds = wrapperRef.current.getBoundingClientRect();
+    const flowPos = rfInstance.screenToFlowPosition({ x: e.clientX - bounds.left, y: e.clientY - bounds.top });
+    setQuickAdd({ x: e.clientX, y: e.clientY, flowPos });
+    setQuickAddSearch("");
+  }
+
+  function addNodeFromQuickAdd(type: string) {
+    if (!quickAdd) return;
+    const config = NODE_TYPE_CONFIG.find((n) => n.type === type);
+    const newNode: Node<NodeData> = {
+      id: `${type}-${Date.now()}`,
+      type,
+      position: quickAdd.flowPos,
+      data: { label: config?.label || type, nodeType: type },
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setQuickAdd(null);
+  }
 
   async function save() {
     setSaving(true);
@@ -514,7 +539,8 @@ export function EditorPage() {
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNode(node as Node<NodeData>)}
-            onPaneClick={() => setSelectedNode(null)}
+            onPaneClick={() => { setSelectedNode(null); setQuickAdd(null); }}
+            onPaneDoubleClick={onPaneDoubleClick}
             fitView
             deleteKeyCode="Delete"
           >
@@ -522,6 +548,50 @@ export function EditorPage() {
             <Controls />
             <MiniMap bgColor="#111827" nodeColor="#1f2937" maskColor="#111827aa" />
           </ReactFlow>
+
+          {/* Quick-add popup */}
+          {quickAdd && (() => {
+            const filtered = quickAddSearch
+              ? NODE_TYPE_CONFIG.filter((n) => n.label.toLowerCase().includes(quickAddSearch.toLowerCase()) || n.description.toLowerCase().includes(quickAddSearch.toLowerCase()))
+              : NODE_TYPE_CONFIG;
+            return (
+              <div
+                className="absolute z-50 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-64 overflow-hidden"
+                style={{ left: Math.min(quickAdd.x, window.innerWidth - 280), top: Math.min(quickAdd.y, window.innerHeight - 320) }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-2 border-b border-gray-700">
+                  <input
+                    autoFocus
+                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Search nodes…"
+                    value={quickAddSearch}
+                    onChange={(e) => setQuickAddSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setQuickAdd(null);
+                      if (e.key === "Enter" && filtered.length > 0) addNodeFromQuickAdd(filtered[0].type);
+                    }}
+                  />
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  {filtered.map((n) => (
+                    <button
+                      key={n.type}
+                      onClick={() => addNodeFromQuickAdd(n.type)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-700 flex items-center gap-2 transition"
+                    >
+                      <span className={`w-6 h-6 rounded flex items-center justify-center text-xs shrink-0 ${n.color}`} />
+                      <div>
+                        <p className="text-white text-xs font-medium">{n.label}</p>
+                        <p className="text-gray-500 text-xs">{n.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                  {filtered.length === 0 && <p className="text-gray-600 text-xs text-center py-4">No nodes found</p>}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {showHistory && (

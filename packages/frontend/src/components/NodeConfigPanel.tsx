@@ -909,6 +909,74 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* CSV */}
+            {nodeType === "csv" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={local.operation || "parse"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="parse">Parse CSV → rows</option>
+                    <option value="stringify">Stringify rows → CSV</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Input Field</label>
+                  <input className={inputCls} value={local.inputField || (local.operation === "stringify" ? "rows" : "csv")} onChange={(e) => patch({ inputField: e.target.value })} placeholder={local.operation === "stringify" ? "rows" : "csv"} />
+                  <p className="text-xs text-gray-500 mt-0.5">{local.operation === "stringify" ? "Array of objects to convert to CSV" : "CSV string from $input to parse"}</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || (local.operation === "stringify" ? "csv" : "rows")} onChange={(e) => patch({ outputField: e.target.value })} placeholder={local.operation === "stringify" ? "csv" : "rows"} />
+                </div>
+                <div>
+                  <label className={labelCls}>Delimiter</label>
+                  <input className={inputCls} value={(local.delimiter as string) || ","} onChange={(e) => patch({ delimiter: e.target.value })} placeholder="," />
+                </div>
+              </div>
+            )}
+
+            {/* HTML Extract */}
+            {nodeType === "htmlExtract" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={local.operation || "text"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="text">Strip tags → plain text</option>
+                    <option value="select">CSS selector → text array</option>
+                    <option value="links">Extract all links</option>
+                    <option value="attributes">Extract tag attributes</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Input Field (HTML)</label>
+                  <input className={inputCls} value={local.inputField || "body"} onChange={(e) => patch({ inputField: e.target.value })} placeholder="body" />
+                </div>
+                {local.operation === "select" && (
+                  <div>
+                    <label className={labelCls}>CSS Selector</label>
+                    <input className={inputCls + " font-mono"} value={(local.selector as string) || ""} onChange={(e) => patch({ selector: e.target.value })} placeholder="h1 or .title or #main" />
+                    <p className="text-xs text-gray-500 mt-0.5">Supports: tag, .class, #id, tag[attr], tag[attr="val"]</p>
+                  </div>
+                )}
+                {local.operation === "attributes" && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className={labelCls}>Tag</label>
+                      <input className={inputCls} value={(local.tag as string) || "a"} onChange={(e) => patch({ tag: e.target.value })} placeholder="a" />
+                    </div>
+                    <div className="flex-1">
+                      <label className={labelCls}>Attribute</label>
+                      <input className={inputCls} value={(local.attr as string) || "href"} onChange={(e) => patch({ attr: e.target.value })} placeholder="href" />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || "extracted"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="extracted" />
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">
