@@ -49,6 +49,7 @@ interface WorkflowRecord {
   id: string;
   name: string;
   active: boolean;
+  tags?: string[];
   errorWorkflowId?: string;
   timeoutMs?: number | null;
   nodes: Node<NodeData>[];
@@ -339,7 +340,7 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null });
     setSaving(false);
   }
 
@@ -516,6 +517,17 @@ export function EditorPage() {
                   value={workflow?.timeoutMs ?? ""}
                   placeholder="300000"
                   onChange={(e) => setWorkflow((w) => (w ? { ...w, timeoutMs: e.target.value ? Number(e.target.value) : null } : w))}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Tags (comma-separated)</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  placeholder="production, crm, nightly"
+                  value={(workflow?.tags ?? []).join(", ")}
+                  onChange={(e) => {
+                    const tags = e.target.value.split(",").map((t) => t.trim()).filter(Boolean);
+                    setWorkflow((w) => (w ? { ...w, tags } : w));
+                  }}
                 />
               </div>
             )}

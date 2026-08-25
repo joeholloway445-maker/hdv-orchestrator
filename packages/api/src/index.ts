@@ -10,6 +10,7 @@ import { webhooksRouter } from "./routes/webhooks";
 import { memoryRouter } from "./routes/memory";
 import { credentialsRouter } from "./routes/credentials";
 import { variablesRouter } from "./routes/variables";
+import { tokensRouter } from "./routes/tokens";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 
@@ -31,6 +32,7 @@ app.use("/executions", verifyToken, executionsRouter);
 app.use("/memory", verifyToken, memoryRouter);
 app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
+app.use("/tokens", verifyToken, tokensRouter);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

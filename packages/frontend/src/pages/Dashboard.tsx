@@ -7,6 +7,7 @@ interface Workflow {
   id: string;
   name: string;
   active: boolean;
+  tags: string[];
   updatedAt: string;
   _count?: { executions: number };
   executions?: Array<{ status: string; startedAt: string }>;
@@ -16,6 +17,7 @@ export function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -91,6 +93,18 @@ export function DashboardPage() {
           >
             Credentials
           </button>
+          <button
+            onClick={() => navigate("/webhooks")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Webhooks
+          </button>
+          <button
+            onClick={() => navigate("/tokens")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            API Tokens
+          </button>
           <span className="text-gray-600">|</span>
           <span className="text-gray-400 text-sm">{user?.email}</span>
           <button
@@ -121,38 +135,57 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <input
-          type="text"
-          className="w-full mb-6 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
-          placeholder="Search workflows..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            className="flex-1 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            placeholder="Search workflows..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <input
+            type="text"
+            className="w-40 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            placeholder="Filter by tag..."
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+          />
+        </div>
 
         {loading ? (
           <div className="text-gray-500">Loading...</div>
-        ) : workflows.filter((w) => w.name.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
-          <div className="text-center py-24 text-gray-500">
-            {search ? (
-              <p className="text-lg">No workflows match &ldquo;{search}&rdquo;</p>
-            ) : (
-              <>
-                <p className="text-lg mb-3">No workflows yet</p>
-                <button onClick={createWorkflow} className="text-blue-400 hover:underline">
-                  Create your first workflow →
-                </button>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {workflows.filter((w) => w.name.toLowerCase().includes(search.toLowerCase())).map((wf) => (
+        ) : (() => {
+          const filtered = workflows.filter((w) =>
+            w.name.toLowerCase().includes(search.toLowerCase()) &&
+            (!tagFilter.trim() || w.tags?.some((t) => t.toLowerCase().includes(tagFilter.toLowerCase())))
+          );
+          return filtered.length === 0 ? (
+            <div className="text-center py-24 text-gray-500">
+              {search || tagFilter ? (
+                <p className="text-lg">No workflows match your filters</p>
+              ) : (
+                <>
+                  <p className="text-lg mb-3">No workflows yet</p>
+                  <button onClick={createWorkflow} className="text-blue-400 hover:underline">
+                    Create your first workflow →
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {filtered.map((wf) => (
               <div
                 key={wf.id}
                 className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-gray-600 transition"
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-white truncate">{wf.name}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-white truncate">{wf.name}</h3>
+                    {wf.tags?.map((tag) => (
+                      <span key={tag} className="bg-blue-900/40 text-blue-300 text-xs rounded-full px-2 py-0.5">{tag}</span>
+                    ))}
+                  </div>
                   <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
                     {wf.active ? (
                       <span className="text-green-400">● Active</span>
@@ -203,9 +236,10 @@ export function DashboardPage() {
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
