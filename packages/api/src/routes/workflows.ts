@@ -10,6 +10,14 @@ router.get("/", async (req: AuthRequest, res) => {
   const workflows = await prisma.workflow.findMany({
     where: { userId: req.userId! },
     orderBy: { updatedAt: "desc" },
+    include: {
+      _count: { select: { executions: true } },
+      executions: {
+        orderBy: { startedAt: "desc" },
+        take: 1,
+        select: { status: true, startedAt: true },
+      },
+    },
   });
   res.json(workflows);
 });
@@ -36,15 +44,22 @@ router.get("/:id", async (req: AuthRequest, res) => {
 });
 
 router.put("/:id", async (req: AuthRequest, res) => {
-  const { name, nodes, edges, active } = req.body;
+  const { name, nodes, edges, active, errorWorkflowId, timeoutMs, tags, maxConcurrency, description } = req.body;
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.id, userId: req.userId! },
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
-  const updated = await prisma.workflow.update({
+  const updated = await (prisma as any).workflow.update({
     where: { id: req.params.id },
-    data: { name, nodes, edges, active },
+    data: {
+      name, nodes, edges, active,
+      ...(errorWorkflowId !== undefined ? { errorWorkflowId } : {}),
+      ...(timeoutMs !== undefined ? { timeoutMs: timeoutMs ? Number(timeoutMs) : null } : {}),
+      ...(Array.isArray(tags) ? { tags } : {}),
+      ...(maxConcurrency !== undefined ? { maxConcurrency: maxConcurrency ? Number(maxConcurrency) : null } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+    },
   });
   res.json(updated);
 });
@@ -56,6 +71,26 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   if (!workflow) return res.status(404).json({ error: "Not found" });
   await prisma.workflow.delete({ where: { id: req.params.id } });
   res.status(204).send();
+});
+
+// ── Duplicate ──────────────────────────────────────────────────────────────
+
+router.post("/:id/duplicate", async (req: AuthRequest, res) => {
+  const source = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!source) return res.status(404).json({ error: "Not found" });
+
+  const copy = await prisma.workflow.create({
+    data: {
+      name: `${source.name} (Copy)`,
+      userId: req.userId!,
+      nodes: source.nodes as object[],
+      edges: source.edges as object[],
+      active: false,
+    },
+  });
+  res.status(201).json(copy);
 });
 
 // ── Versioning ─────────────────────────────────────────────────────────────
@@ -131,6 +166,33 @@ router.post("/:id/execute", async (req: AuthRequest, res) => {
   });
 
   res.status(202).json(execution);
+});
+
+// ── Test Single Node ─────────────────────────────────────────────────────────
+
+router.post("/:id/test-node", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const { nodeId, input } = req.body as { nodeId?: string; input?: Record<string, unknown> };
+  const nodes = (workflow.nodes as Array<{ id: string; data: Record<string, unknown> }>);
+  const node = nodeId ? nodes.find((n) => n.id === nodeId) : null;
+  if (!node) return res.status(404).json({ error: "Node not found in workflow" });
+
+  const workerUrl = process.env.WORKER_INTERNAL_URL || "http://localhost:4001";
+  try {
+    const resp = await fetch(`${workerUrl}/test-node`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node, input: input || {} }),
+    });
+    const data = await resp.json() as Record<string, unknown>;
+    res.json(data);
+  } catch {
+    res.status(502).json({ error: "Worker unavailable — ensure the worker process is running" });
+  }
 });
 
 export { router as workflowsRouter };

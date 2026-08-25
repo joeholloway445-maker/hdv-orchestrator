@@ -50,6 +50,60 @@ router.get("/:id", async (req: AuthRequest, res) => {
   res.json(execution);
 });
 
+// Bulk delete — DELETE /executions?status=FAILED or ?olderThanDays=7
+router.delete("/", async (req: AuthRequest, res) => {
+  const workflows = await prisma.workflow.findMany({
+    where: { userId: req.userId! },
+    select: { id: true },
+  });
+  const workflowIds = workflows.map((w) => w.id);
+
+  const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
+
+  if (req.query.status) {
+    where.status = req.query.status as string;
+  }
+  if (req.query.olderThanDays) {
+    const days = Number(req.query.olderThanDays);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    where.startedAt = { lt: cutoff };
+  }
+
+  const { count } = await prisma.execution.deleteMany({ where: where as Parameters<typeof prisma.execution.deleteMany>[0]["where"] });
+  res.json({ deleted: count });
+});
+
+// Delete a specific execution
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const execution = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: { select: { userId: true } } },
+  });
+  if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+  await prisma.execution.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
+// Update execution note (stored in data.note)
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const execution = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: { select: { userId: true } } },
+  });
+  if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+
+  const existing = (execution.data as Record<string, unknown>) ?? {};
+  const note = typeof req.body.note === "string" ? req.body.note : null;
+  const updated = await prisma.execution.update({
+    where: { id: req.params.id },
+    data: { data: { ...existing, note } },
+    include: { nodeLogs: { orderBy: { startedAt: "asc" } } },
+  });
+  res.json(updated);
+});
+
 // Retry a failed execution — replays with original trigger data
 router.post("/:id/retry", async (req: AuthRequest, res) => {
   const original = await prisma.execution.findUnique({

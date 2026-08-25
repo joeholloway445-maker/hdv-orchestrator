@@ -7,12 +7,18 @@ interface Workflow {
   id: string;
   name: string;
   active: boolean;
+  description?: string;
+  tags: string[];
   updatedAt: string;
+  _count?: { executions: number };
+  executions?: Array<{ status: string; startedAt: string }>;
 }
 
 export function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -48,6 +54,16 @@ export function DashboardPage() {
     navigate(`/workflow/${(data as Workflow).id}`);
   }
 
+  async function duplicateWorkflow(id: string) {
+    const { data } = await api.post(`/workflows/${id}/duplicate`);
+    setWorkflows((prev) => [data as Workflow, ...prev]);
+  }
+
+  async function toggleActive(wf: Workflow) {
+    const { data } = await api.put(`/workflows/${wf.id}`, { active: !wf.active });
+    setWorkflows((prev) => prev.map((w) => (w.id === wf.id ? { ...w, active: (data as Workflow).active } : w)));
+  }
+
   async function deleteWorkflow(id: string) {
     if (!confirm("Delete this workflow?")) return;
     await api.delete(`/workflows/${id}`);
@@ -59,6 +75,12 @@ export function DashboardPage() {
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold tracking-tight">Workflow Platform</h1>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate("/templates")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Templates
+          </button>
           <button
             onClick={() => navigate("/memory")}
             className="text-sm text-gray-400 hover:text-white transition"
@@ -83,6 +105,18 @@ export function DashboardPage() {
           >
             Credentials
           </button>
+          <button
+            onClick={() => navigate("/webhooks")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Webhooks
+          </button>
+          <button
+            onClick={() => navigate("/tokens")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            API Tokens
+          </button>
           <span className="text-gray-600">|</span>
           <span className="text-gray-400 text-sm">{user?.email}</span>
           <button
@@ -95,9 +129,15 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">My Workflows</h2>
           <div className="flex gap-2">
+            <button
+              onClick={() => navigate("/templates")}
+              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"
+            >
+              From Template
+            </button>
             <button
               onClick={importWorkflow}
               className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"
@@ -113,39 +153,113 @@ export function DashboardPage() {
           </div>
         </div>
 
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            className="flex-1 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            placeholder="Search workflows..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <input
+            type="text"
+            className="w-40 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            placeholder="Filter by tag..."
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+          />
+        </div>
+
         {loading ? (
           <div className="text-gray-500">Loading...</div>
-        ) : workflows.length === 0 ? (
-          <div className="text-center py-24 text-gray-500">
-            <p className="text-lg mb-3">No workflows yet</p>
-            <button onClick={createWorkflow} className="text-blue-400 hover:underline">
-              Create your first workflow →
-            </button>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {workflows.map((wf) => (
+        ) : (() => {
+          const q = search.toLowerCase();
+          const filtered = workflows.filter((w) =>
+            (!q || w.name.toLowerCase().includes(q) || w.description?.toLowerCase().includes(q)) &&
+            (!tagFilter.trim() || w.tags?.some((t) => t.toLowerCase().includes(tagFilter.toLowerCase())))
+          );
+          return filtered.length === 0 ? (
+            <div className="text-center py-24 text-gray-500">
+              {search || tagFilter ? (
+                <p className="text-lg">No workflows match your filters</p>
+              ) : (
+                <>
+                  <p className="text-lg mb-3">No workflows yet</p>
+                  <button onClick={createWorkflow} className="text-blue-400 hover:underline">
+                    Create your first workflow →
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {filtered.map((wf) => (
               <div
                 key={wf.id}
                 className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-gray-600 transition"
               >
-                <div>
-                  <h3 className="font-semibold text-white">{wf.name}</h3>
-                  <p className="text-gray-500 text-sm mt-0.5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-white truncate">{wf.name}</h3>
+                    {wf.tags?.map((tag) => (
+                      <span key={tag} className="bg-blue-900/40 text-blue-300 text-xs rounded-full px-2 py-0.5">{tag}</span>
+                    ))}
+                  </div>
+                  {wf.description && (
+                    <p className="text-gray-400 text-xs mt-0.5 truncate">{wf.description}</p>
+                  )}
+                  <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
                     {wf.active ? (
                       <span className="text-green-400">● Active</span>
                     ) : (
                       <span className="text-gray-600">○ Inactive</span>
-                    )}{" "}
-                    · {new Date(wf.updatedAt).toLocaleDateString()}
+                    )}
+                    <span>·</span>
+                    <span>Updated {new Date(wf.updatedAt).toLocaleDateString()}</span>
+                    {wf._count && (
+                      <>
+                        <span>·</span>
+                        <span className="text-gray-500">{wf._count.executions} run{wf._count.executions !== 1 ? "s" : ""}</span>
+                      </>
+                    )}
+                    {wf.executions?.[0] && (
+                      <>
+                        <span>·</span>
+                        <span className={
+                          wf.executions[0].status === "SUCCESS" ? "text-green-500" :
+                          wf.executions[0].status === "FAILED" ? "text-red-400" :
+                          "text-yellow-400"
+                        }>
+                          Last: {wf.executions[0].status.toLowerCase()}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => toggleActive(wf)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition font-medium ${
+                      wf.active
+                        ? "bg-green-900/40 hover:bg-green-900/60 text-green-400"
+                        : "bg-gray-700 hover:bg-gray-600 text-gray-400"
+                    }`}
+                    title={wf.active ? "Click to deactivate" : "Click to activate"}
+                  >
+                    {wf.active ? "Active" : "Inactive"}
+                  </button>
                   <button
                     onClick={() => navigate(`/workflow/${wf.id}`)}
                     className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
                   >
                     Edit
+                  </button>
+                  <button
+                    onClick={() => duplicateWorkflow(wf.id)}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+                    title="Duplicate workflow"
+                  >
+                    ⧉
                   </button>
                   <button
                     onClick={() => deleteWorkflow(wf.id)}
@@ -155,9 +269,10 @@ export function DashboardPage() {
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </main>
     </div>
   );

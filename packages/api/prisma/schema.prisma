@@ -17,6 +17,7 @@ model User {
   memories        UserMemory[]
   credentials     Credential[]
   globalVariables GlobalVariable[]
+  apiTokens       ApiToken[]
 }
 
 model Workflow {
@@ -24,9 +25,14 @@ model Workflow {
   userId     String
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
-  active     Boolean           @default(false)
-  nodes      Json              @default("[]")
-  edges      Json              @default("[]")
+  active            Boolean           @default(false)
+  description       String?
+  tags              String[]          @default([])
+  errorWorkflowId   String?
+  timeoutMs         Int?
+  maxConcurrency    Int?
+  nodes             Json              @default("[]")
+  edges             Json              @default("[]")
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
   executions Execution[]
@@ -90,6 +96,17 @@ model WorkflowVersion {
   nodes      Json     @default("[]")
   edges      Json     @default("[]")
   createdAt  DateTime @default(now())
+}
+
+model ApiToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  tokenHash   String    @unique
+  prefix      String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
 }
 
 model GlobalVariable {

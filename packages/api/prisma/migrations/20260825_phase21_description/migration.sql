@@ -1,0 +1,1 @@
+ALTER TABLE "Workflow" ADD COLUMN IF NOT EXISTS "description" TEXT;

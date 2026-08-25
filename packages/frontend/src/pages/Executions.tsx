@@ -25,6 +25,7 @@ interface ExecutionRow {
 
 interface ExecutionDetail extends ExecutionRow {
   nodeLogs: NodeLog[];
+  data?: { note?: string; [key: string]: unknown };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -85,11 +86,24 @@ function NodeLogRow({ log }: { log: NodeLog }) {
   );
 }
 
-function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDetail; onClose: () => void }) {
+function ExecutionDetailPanel({ execution, onClose, onNoteUpdate }: { execution: ExecutionDetail; onClose: () => void; onNoteUpdate?: (note: string) => void }) {
+  const [note, setNote] = useState(execution.data?.note ?? "");
+  const [savingNote, setSavingNote] = useState(false);
+
+  async function saveNote() {
+    setSavingNote(true);
+    try {
+      await api.patch(`/executions/${execution.id}`, { note });
+      onNoteUpdate?.(note);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
@@ -105,7 +119,25 @@ function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDeta
             <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+        <div className="px-5 pt-3 pb-2">
+          <div className="flex gap-2 items-start">
+            <textarea
+              className="flex-1 bg-gray-800 text-white text-xs rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-700"
+              rows={2}
+              placeholder="Add a note about this execution…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <button
+              onClick={saveNote}
+              disabled={savingNote}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs rounded px-3 py-1.5 transition whitespace-nowrap"
+            >
+              {savingNote ? "…" : "Save note"}
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-2">
           {execution.nodeLogs.length === 0 ? (
             <p className="text-gray-600 text-sm">No node logs yet.</p>
           ) : (
@@ -118,7 +150,20 @@ function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDeta
               Open in Editor →
             </Link>
           )}
-          <span />
+          <button
+            onClick={() => {
+              const blob = new Blob([JSON.stringify({ id: execution.id, status: execution.status, startedAt: execution.startedAt, finishedAt: execution.finishedAt, note, nodeLogs: execution.nodeLogs }, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `execution-${execution.id.slice(0, 8)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-xs text-gray-400 hover:text-white transition"
+          >
+            ↓ Download JSON
+          </button>
         </div>
       </div>
     </div>
@@ -131,6 +176,7 @@ export function ExecutionsPage() {
   const [filter, setFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -144,10 +190,23 @@ export function ExecutionsPage() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
   async function openDetail(e: ExecutionRow) {
     const { data } = await api.get(`/executions/${e.id}`);
     const full = data as ExecutionDetail;
-    setDetail({ ...e, nodeLogs: full.nodeLogs || [] });
+    setDetail({ ...e, nodeLogs: full.nodeLogs || [], data: full.data });
+  }
+
+  async function deleteExecution(e: ExecutionRow, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    if (!confirm("Delete this execution record?")) return;
+    await api.delete(`/executions/${e.id}`);
+    setExecutions((prev) => prev.filter((x) => x.id !== e.id));
   }
 
   async function retry(e: ExecutionRow, ev: React.MouseEvent) {
@@ -162,6 +221,18 @@ export function ExecutionsPage() {
     }
   }
 
+  async function bulkDelete(status: string) {
+    if (!confirm(`Delete all ${status || "selected"} executions?`)) return;
+    await api.delete(`/executions${status ? `?status=${status}` : ""}`);
+    await load();
+  }
+
+  async function purgeOld(days: number) {
+    if (!confirm(`Delete all executions older than ${days} days?`)) return;
+    await api.delete(`/executions?olderThanDays=${days}`);
+    await load();
+  }
+
   const filtered = filter
     ? executions.filter(
         (e) =>
@@ -173,23 +244,55 @@ export function ExecutionsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} />}
+      {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} onNoteUpdate={(note) => setDetail((d) => d ? { ...d, data: { ...(d.data ?? {}), note } } : d)} />}
 
       <header className="border-b border-gray-800 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link to="/dashboard" className="text-gray-400 hover:text-white text-sm">← Dashboard</Link>
           <h1 className="text-xl font-bold">All Executions</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {["", "SUCCESS", "FAILED", "RUNNING", "PENDING"].map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                filter === s
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              {s || "All"}
+            </button>
+          ))}
           <input
-            className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
-            placeholder="Filter by name or status…"
+            className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+            placeholder="Search by name…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
           <button onClick={load} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
             Refresh
           </button>
+          <button
+            onClick={() => setAutoRefresh((a) => !a)}
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${autoRefresh ? "bg-green-700 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+            title="Auto-refresh every 5 seconds"
+          >
+            {autoRefresh ? "⟳ Live" : "⟳ Off"}
+          </button>
+          <div className="relative group">
+            <button className="bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-lg px-3 py-1.5 text-sm transition">
+              Purge ▾
+            </button>
+            <div className="hidden group-hover:flex absolute right-0 top-9 z-50 flex-col bg-gray-800 border border-gray-700 rounded-xl py-1 shadow-2xl min-w-[180px]">
+              <button onClick={() => bulkDelete("FAILED")} className="px-4 py-2 text-sm text-red-400 hover:bg-gray-700 text-left">Delete all FAILED</button>
+              <button onClick={() => bulkDelete("SUCCESS")} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Delete all SUCCESS</button>
+              <hr className="border-gray-700 my-1" />
+              <button onClick={() => purgeOld(7)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 7 days</button>
+              <button onClick={() => purgeOld(30)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 30 days</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -242,7 +345,7 @@ export function ExecutionsPage() {
                       >
                         Logs
                       </button>
-                      {(e.status === "ERROR" || e.status === "SUCCESS") && (
+                      {(e.status === "FAILED" || e.status === "SUCCESS") && (
                         <button
                           className="text-xs text-yellow-400 hover:underline disabled:opacity-50"
                           disabled={retrying === e.id}
@@ -251,6 +354,12 @@ export function ExecutionsPage() {
                           {retrying === e.id ? "…" : "Retry"}
                         </button>
                       )}
+                      <button
+                        className="text-xs text-red-400 hover:underline"
+                        onClick={(ev) => deleteExecution(e, ev)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

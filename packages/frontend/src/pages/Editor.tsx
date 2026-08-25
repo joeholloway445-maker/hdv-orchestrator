@@ -49,6 +49,11 @@ interface WorkflowRecord {
   id: string;
   name: string;
   active: boolean;
+  description?: string;
+  tags?: string[];
+  errorWorkflowId?: string;
+  timeoutMs?: number | null;
+  maxConcurrency?: number | null;
   nodes: Node<NodeData>[];
   edges: Edge[];
 }
@@ -71,34 +76,46 @@ interface NodeLog {
   finishedAt?: string;
 }
 
-type NodeStatus = "running" | "success" | "error";
+type NodeStatus = "running" | "success" | "error" | "skipped";
 
 export const NODE_TYPE_CONFIG = [
   // Triggers
-  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger" },
-  { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually" },
-  { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule" },
-  // HTTP & Code
-  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL" },
-  { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS" },
-  { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email" },
-  // Flow control
-  { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing" },
-  { type: "switch", label: "Switch", color: "bg-amber-700", description: "Multi-way routing" },
-  { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches" },
-  { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response" },
+  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger", category: "Triggers" },
+  { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually", category: "Triggers" },
+  { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule", category: "Triggers" },
+  // Core
+  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL", category: "Core" },
+  { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS", category: "Core" },
+  { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email", category: "Core" },
+  { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response", category: "Core" },
+  // Flow
+  { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing", category: "Flow" },
+  { type: "switch", label: "Switch", color: "bg-amber-700", description: "Multi-way routing", category: "Flow" },
+  { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches", category: "Flow" },
+  { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array", category: "Flow" },
+  { type: "splitBatches", label: "Split in Batches", color: "bg-orange-600", description: "Process array in chunks", category: "Flow" },
+  { type: "wait", label: "Wait", color: "bg-slate-600", description: "Delay execution", category: "Flow" },
   // Data
-  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
-  { type: "filter", label: "Filter", color: "bg-emerald-700", description: "Filter array items" },
-  { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array" },
-  { type: "wait", label: "Wait", color: "bg-slate-600", description: "Delay execution" },
-  // Workflows & Memory
-  { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow" },
-  { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
-  { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
-  // AI & Annotation
-  { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic" },
-  { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
+  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields", category: "Data" },
+  { type: "filter", label: "Filter", color: "bg-emerald-700", description: "Filter array items", category: "Data" },
+  { type: "aggregate", label: "Aggregate", color: "bg-lime-700", description: "Collect items into array", category: "Data" },
+  { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output", category: "Data" },
+  { type: "datetime", label: "Date & Time", color: "bg-sky-600", description: "Format, add, diff dates", category: "Data" },
+  { type: "crypto", label: "Crypto / Hash", color: "bg-gray-700", description: "Hash, HMAC, Base64, UUID", category: "Data" },
+  // AI & Memory
+  { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic", category: "AI" },
+  { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory", category: "AI" },
+  { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory", category: "AI" },
+  // Workflows
+  { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
+  // Utilities
+  { type: "validate", label: "Validate", color: "bg-red-700", description: "Validate field rules", category: "Utilities" },
+  { type: "noOp", label: "No Op", color: "bg-gray-500", description: "Pass-through — does nothing", category: "Utilities" },
+  { type: "stopError", label: "Stop & Error", color: "bg-red-900", description: "Halt execution with error", category: "Utilities" },
+  { type: "jsonPath", label: "JSON Path", color: "bg-indigo-600", description: "Get, set, pick, omit, rename fields", category: "Data" },
+  { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
+  { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
+  { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
 function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
@@ -107,6 +124,7 @@ function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
     running: "0 0 0 3px #facc15",
     success: "0 0 0 3px #4ade80",
     error: "0 0 0 3px #f87171",
+    skipped: "0 0 0 3px #6b7280",
   };
   return { boxShadow: ring[status] };
 }
@@ -127,8 +145,12 @@ export function EditorPage() {
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [allWorkflows, setAllWorkflows] = useState<{ id: string; name: string }[]>([]);
   const [versions, setVersions] = useState<Array<{ id: string; name: string; createdAt: string }>>([]);
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
+  const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
+  const [quickAddSearch, setQuickAddSearch] = useState("");
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -181,14 +203,29 @@ export function EditorPage() {
     }
   }, [nodes, edges]);
 
+  function duplicateSelected() {
+    if (!selectedNode) return;
+    const newNode: Node<NodeData> = {
+      ...selectedNode,
+      id: `${selectedNode.type}-${Date.now()}`,
+      position: { x: selectedNode.position.x + 40, y: selectedNode.position.y + 40 },
+      selected: false,
+      data: { ...selectedNode.data },
+    };
+    setNodes((nds) => nds.concat(newNode));
+  }
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") { e.preventDefault(); duplicateSelected(); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectedNode]);
 
   useEffect(() => {
     api.get(`/workflows/${id}`).then(({ data }) => {
@@ -197,8 +234,23 @@ export function EditorPage() {
       setNodes((wf.nodes as Node<NodeData>[]) || []);
       setEdges((wf.edges as Edge[]) || []);
     });
-    api.get(`/executions/workflow/${id}`).then(({ data }) => {
-      setExecutions(data as ExecutionRecord[]);
+    api.get(`/executions/workflow/${id}`).then(async ({ data }) => {
+      const execs = data as ExecutionRecord[];
+      setExecutions(execs);
+      // Load node logs from most recent finished execution for output overlays
+      const lastFinished = execs.find((e) => e.status === "SUCCESS" || e.status === "FAILED");
+      if (lastFinished) {
+        const { data: detail } = await api.get(`/executions/${lastFinished.id}`);
+        setNodeLogs((detail as { nodeLogs: NodeLog[] }).nodeLogs || []);
+        const statuses: Record<string, NodeStatus> = {};
+        for (const log of (detail as { nodeLogs: NodeLog[] }).nodeLogs) {
+          statuses[log.nodeId] = log.status.toLowerCase() as NodeStatus;
+        }
+        setNodeStatuses(statuses);
+      }
+    });
+    api.get("/workflows").then(({ data }) => {
+      setAllWorkflows((data as WorkflowRecord[]).map((w) => ({ id: w.id, name: w.name })));
     });
   }, [id]);
 
@@ -213,6 +265,8 @@ export function EditorPage() {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "success" }));
       } else if (event.type === "node-error" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "error" }));
+      } else if (event.type === "node-skipped" && event.nodeId) {
+        setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "skipped" }));
       } else if (event.type === "execution-failed") {
         setExecuting(false);
         refreshExecutions();
@@ -280,10 +334,37 @@ export function EditorPage() {
     e.dataTransfer.dropEffect = "move";
   };
 
+  function onPaneDoubleClick(e: React.MouseEvent) {
+    if (!rfInstance || !wrapperRef.current) return;
+    const bounds = wrapperRef.current.getBoundingClientRect();
+    const flowPos = rfInstance.screenToFlowPosition({ x: e.clientX - bounds.left, y: e.clientY - bounds.top });
+    setQuickAdd({ x: e.clientX, y: e.clientY, flowPos });
+    setQuickAddSearch("");
+  }
+
+  function addNodeFromQuickAdd(type: string) {
+    if (!quickAdd) return;
+    const config = NODE_TYPE_CONFIG.find((n) => n.type === type);
+    const newNode: Node<NodeData> = {
+      id: `${type}-${Date.now()}`,
+      type,
+      position: quickAdd.flowPos,
+      data: { label: config?.label || type, nodeType: type },
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setQuickAdd(null);
+  }
+
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null, maxConcurrency: workflow?.maxConcurrency ?? null, description: workflow?.description ?? null });
     setSaving(false);
+  }
+
+  async function toggleActive() {
+    if (!workflow) return;
+    const { data } = await api.put(`/workflows/${id}`, { active: !workflow.active });
+    setWorkflow((w) => (w ? { ...w, active: (data as WorkflowRecord).active } : w));
   }
 
   async function execute() {
@@ -292,7 +373,13 @@ export function EditorPage() {
     setNodeLogs([]);
     setExecuting(true);
     setExecutionId(null);
-    const { data } = await api.post(`/workflows/${id}/execute`);
+    // Read testData from the manual trigger node if present
+    const manualNode = nodes.find((n) => (n.data?.nodeType || n.type) === "manualTrigger");
+    let triggerData: Record<string, unknown> = {};
+    if (manualNode?.data?.testData) {
+      try { triggerData = JSON.parse(manualNode.data.testData as string); } catch { /* ignore invalid JSON */ }
+    }
+    const { data } = await api.post(`/workflows/${id}/execute`, { data: triggerData });
     const execId = (data as { id: string }).id;
     setExecutionId(execId);
     setExecutions((prev) => [
@@ -333,7 +420,14 @@ export function EditorPage() {
   }
 
   function exportWorkflow() {
-    const blob = new Blob([JSON.stringify({ nodes, edges, name: workflow?.name }, null, 2)], {
+    const blob = new Blob([JSON.stringify({
+      name: workflow?.name,
+      tags: workflow?.tags ?? [],
+      errorWorkflowId: workflow?.errorWorkflowId,
+      timeoutMs: workflow?.timeoutMs,
+      nodes,
+      edges,
+    }, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -352,10 +446,18 @@ export function EditorPage() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       const text = await file.text();
-      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string };
+      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string; tags?: string[]; errorWorkflowId?: string; timeoutMs?: number };
       setNodes(parsed.nodes || []);
       setEdges(parsed.edges || []);
-      if (parsed.name && workflow) setWorkflow({ ...workflow, name: parsed.name });
+      if (workflow) {
+        setWorkflow({
+          ...workflow,
+          ...(parsed.name ? { name: parsed.name } : {}),
+          ...(parsed.tags ? { tags: parsed.tags } : {}),
+          ...(parsed.errorWorkflowId !== undefined ? { errorWorkflowId: parsed.errorWorkflowId } : {}),
+          ...(parsed.timeoutMs !== undefined ? { timeoutMs: parsed.timeoutMs } : {}),
+        });
+      }
     };
     input.click();
   }
@@ -373,10 +475,46 @@ export function EditorPage() {
     ? nodeLogs.find((l) => l.nodeId === selectedNode.id) ?? null
     : null;
 
-  const displayNodes = nodes.map((n) => ({
-    ...n,
-    style: { ...n.style, ...nodeStyle(nodeStatuses[n.id]) },
-  }));
+  // Compute input field suggestions from the last output of parent node(s)
+  const inputSuggestions: string[] = (() => {
+    if (!selectedNode) return [];
+    const parentIds = edges.filter((e) => e.target === selectedNode.id).map((e) => e.source);
+    const parentOutputs = parentIds
+      .map((pid) => nodeLogs.find((l) => l.nodeId === pid)?.output)
+      .filter((o): o is Record<string, unknown> => o !== null && o !== undefined && typeof o === "object" && !Array.isArray(o));
+    if (parentOutputs.length === 0) return [];
+    const merged = Object.assign({}, ...parentOutputs);
+    function flatten(obj: Record<string, unknown>, prefix = "$input"): string[] {
+      const keys: string[] = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (k.startsWith("_")) continue;
+        const path = `${prefix}.${k}`;
+        keys.push(path);
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          keys.push(...flatten(v as Record<string, unknown>, path));
+        }
+      }
+      return keys;
+    }
+    return [...new Set(["$input", ...flatten(merged)])].slice(0, 40);
+  })();
+
+  const displayNodes = nodes.map((n) => {
+    const status = nodeStatuses[n.id];
+    const log = nodeLogs.find((l) => l.nodeId === n.id);
+    const outputPreview = log?.output !== undefined
+      ? JSON.stringify(log.output).slice(0, 60)
+      : undefined;
+    return {
+      ...n,
+      style: { ...n.style, ...nodeStyle(status) },
+      data: {
+        ...n.data,
+        _status: status ?? (log?.status?.toLowerCase()),
+        _outputPreview: outputPreview,
+      },
+    };
+  });
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
@@ -414,15 +552,80 @@ export function EditorPage() {
           >
             Versions
           </button>
-          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={workflow?.active || false}
-              onChange={(e) => setWorkflow((w) => (w ? { ...w, active: e.target.checked } : w))}
-              className="accent-green-500"
-            />
-            Active
-          </label>
+          <button
+            onClick={toggleActive}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+              workflow?.active
+                ? "bg-green-700/60 hover:bg-green-700/80 text-green-300"
+                : "bg-gray-700 hover:bg-gray-600 text-gray-400"
+            }`}
+            title={workflow?.active ? "Click to deactivate" : "Click to activate"}
+          >
+            {workflow?.active ? "● Active" : "○ Inactive"}
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              className={`px-3 py-1.5 rounded-lg text-xs transition ${showSettings ? "bg-gray-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+            >
+              ⚙ Settings
+            </button>
+            {showSettings && (
+              <div className="absolute right-0 top-9 z-50 w-72 bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-2xl">
+                <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Workflow Settings</p>
+                <label className="text-xs text-gray-400 block mb-1">Error Workflow</label>
+                <select
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.errorWorkflowId || ""}
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, errorWorkflowId: e.target.value || undefined } : w))}
+                >
+                  <option value="">None</option>
+                  {allWorkflows.filter((w) => w.id !== id).map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Triggered automatically when this workflow fails.</p>
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Execution Timeout (ms, default 300000)</label>
+                <input
+                  type="number"
+                  min="1000"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.timeoutMs ?? ""}
+                  placeholder="300000"
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, timeoutMs: e.target.value ? Number(e.target.value) : null } : w))}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Max Concurrent Executions</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.maxConcurrency ?? ""}
+                  placeholder="Unlimited"
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, maxConcurrency: e.target.value ? Number(e.target.value) : null } : w))}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Tags (comma-separated)</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  placeholder="production, crm, nightly"
+                  value={(workflow?.tags ?? []).join(", ")}
+                  onChange={(e) => {
+                    const tags = e.target.value.split(",").map((t) => t.trim()).filter(Boolean);
+                    setWorkflow((w) => (w ? { ...w, tags } : w));
+                  }}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+                  placeholder="What does this workflow do?"
+                  value={workflow?.description ?? ""}
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, description: e.target.value || undefined } : w))}
+                />
+              </div>
+            )}
+          </div>
           <button
             onClick={save}
             disabled={saving}
@@ -455,7 +658,8 @@ export function EditorPage() {
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNode(node as Node<NodeData>)}
-            onPaneClick={() => setSelectedNode(null)}
+            onPaneClick={() => { setSelectedNode(null); setQuickAdd(null); }}
+            onPaneDoubleClick={onPaneDoubleClick}
             fitView
             deleteKeyCode="Delete"
           >
@@ -463,6 +667,50 @@ export function EditorPage() {
             <Controls />
             <MiniMap bgColor="#111827" nodeColor="#1f2937" maskColor="#111827aa" />
           </ReactFlow>
+
+          {/* Quick-add popup */}
+          {quickAdd && (() => {
+            const filtered = quickAddSearch
+              ? NODE_TYPE_CONFIG.filter((n) => n.label.toLowerCase().includes(quickAddSearch.toLowerCase()) || n.description.toLowerCase().includes(quickAddSearch.toLowerCase()))
+              : NODE_TYPE_CONFIG;
+            return (
+              <div
+                className="absolute z-50 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-64 overflow-hidden"
+                style={{ left: Math.min(quickAdd.x, window.innerWidth - 280), top: Math.min(quickAdd.y, window.innerHeight - 320) }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-2 border-b border-gray-700">
+                  <input
+                    autoFocus
+                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Search nodes…"
+                    value={quickAddSearch}
+                    onChange={(e) => setQuickAddSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setQuickAdd(null);
+                      if (e.key === "Enter" && filtered.length > 0) addNodeFromQuickAdd(filtered[0].type);
+                    }}
+                  />
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  {filtered.map((n) => (
+                    <button
+                      key={n.type}
+                      onClick={() => addNodeFromQuickAdd(n.type)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-700 flex items-center gap-2 transition"
+                    >
+                      <span className={`w-6 h-6 rounded flex items-center justify-center text-xs shrink-0 ${n.color}`} />
+                      <div>
+                        <p className="text-white text-xs font-medium">{n.label}</p>
+                        <p className="text-gray-500 text-xs">{n.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                  {filtered.length === 0 && <p className="text-gray-600 text-xs text-center py-4">No nodes found</p>}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {showHistory && (
@@ -552,6 +800,9 @@ export function EditorPage() {
             onUpdate={(data) => updateNodeData(selectedNode.id, data)}
             onClose={() => setSelectedNode(null)}
             nodeLog={selectedNodeLog}
+            inputSuggestions={inputSuggestions}
+            webhookBaseUrl={import.meta.env.VITE_API_BASE_URL || "http://localhost:4000"}
+            workflowId={id}
           />
         )}
       </div>

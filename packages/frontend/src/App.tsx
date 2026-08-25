@@ -7,6 +7,9 @@ import { MemoryPage } from "./pages/Memory";
 import { CredentialsPage } from "./pages/Credentials";
 import { VariablesPage } from "./pages/Variables";
 import { ExecutionsPage } from "./pages/Executions";
+import { TokensPage } from "./pages/Tokens";
+import { WebhooksPage } from "./pages/Webhooks";
+import { TemplatesPage } from "./pages/Templates";
 import { useAuthStore } from "./store/auth";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +68,30 @@ export default function App() {
           element={
             <PrivateRoute>
               <ExecutionsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/tokens"
+          element={
+            <PrivateRoute>
+              <TokensPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/webhooks"
+          element={
+            <PrivateRoute>
+              <WebhooksPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/templates"
+          element={
+            <PrivateRoute>
+              <TemplatesPage />
             </PrivateRoute>
           }
         />

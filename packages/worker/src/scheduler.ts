@@ -19,7 +19,7 @@ export async function startScheduler(prisma: PrismaClient) {
 async function syncSchedules(prisma: PrismaClient) {
   const activeWorkflows = await prisma.workflow.findMany({ where: { active: true } });
 
-  const desired = new Map<string, string>(); // workflowId → cronExpression
+  const desired = new Map<string, { expr: string; timezone?: string }>(); // workflowId → schedule config
 
   for (const wf of activeWorkflows) {
     const nodes = wf.nodes as RawNode[];
@@ -27,7 +27,8 @@ async function syncSchedules(prisma: PrismaClient) {
     if (!scheduleNode) continue;
     const expr = String(scheduleNode.data?.cronExpression || "");
     if (!expr || !cron.validate(expr)) continue;
-    desired.set(wf.id, expr);
+    const timezone = scheduleNode.data?.timezone ? String(scheduleNode.data.timezone) : undefined;
+    desired.set(wf.id, { expr, timezone });
   }
 
   // Stop tasks no longer needed
@@ -40,20 +41,20 @@ async function syncSchedules(prisma: PrismaClient) {
   }
 
   // Start new tasks
-  for (const [wfId, expr] of desired) {
+  for (const [wfId, { expr, timezone }] of desired) {
     if (activeTasks.has(wfId)) continue; // already running
     const task = cron.schedule(expr, async () => {
       try {
         const execution = await prisma.execution.create({
           data: { workflowId: wfId, status: "PENDING" },
         });
-        await enqueueWorkflow({ workflowId: wfId, executionId: execution.id, triggerData: { _trigger: "schedule" } });
+        await enqueueWorkflow({ workflowId: wfId, executionId: execution.id, triggerData: { _trigger: "schedule", _now: new Date().toISOString() } });
         console.log(`[Scheduler] Triggered workflow ${wfId} execution ${execution.id}`);
       } catch (err) {
         console.error(`[Scheduler] Failed to trigger workflow ${wfId}:`, err);
       }
-    });
+    }, { timezone: timezone || "UTC" });
     activeTasks.set(wfId, task);
-    console.log(`[Scheduler] Registered schedule "${expr}" for workflow ${wfId}`);
+    console.log(`[Scheduler] Registered schedule "${expr}"${timezone ? ` (${timezone})` : ""} for workflow ${wfId}`);
   }
 }

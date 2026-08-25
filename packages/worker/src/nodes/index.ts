@@ -13,6 +13,17 @@ import { executeEmail } from "./email";
 import { executeSubWorkflow } from "./subWorkflow";
 import { executeRespond } from "./respond";
 import { executeAI } from "./ai";
+import { executeAggregate } from "./aggregate";
+import { executeTransform } from "./transform";
+import { executeDatetime } from "./datetime";
+import { executeCrypto } from "./crypto";
+import { executeSplitBatches } from "./splitBatches";
+import { executeValidate } from "./validate";
+import { executeCSV } from "./csv";
+import { executeHtmlExtract } from "./html";
+import { executeJsonPath } from "./jsonPath";
+import { executeStopError } from "./stopError";
+import { executeMerge } from "./merge";
 
 interface NodeDef {
   id: string;
@@ -40,7 +51,7 @@ export async function executeNode(
     case "set":
       return executeSet(node, $input);
     case "merge":
-      return $input;
+      return executeMerge(node, $input);
     case "loop":
       return executeLoop(node, $input);
     case "wait":
@@ -61,6 +72,28 @@ export async function executeNode(
       return executeMemoryWrite(node, $input, prisma!);
     case "ai":
       return executeAI(node, $input);
+    case "aggregate":
+      return executeAggregate(node, $input);
+    case "transform":
+      return executeTransform(node, $input);
+    case "datetime":
+      return executeDatetime(node, $input);
+    case "crypto":
+      return executeCrypto(node, $input);
+    case "splitBatches":
+      return executeSplitBatches(node, $input);
+    case "validate":
+      return executeValidate(node, $input);
+    case "noOp":
+      return $input;
+    case "stopError":
+      return executeStopError(node, $input);
+    case "jsonPath":
+      return executeJsonPath(node, $input);
+    case "csv":
+      return executeCSV(node, $input);
+    case "htmlExtract":
+      return executeHtmlExtract(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

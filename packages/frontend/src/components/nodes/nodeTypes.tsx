@@ -75,6 +75,50 @@ export const AiNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-purple-900" icon="🤖" hasErrorOutput />
 );
 
+export const AggregateNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-lime-700" icon="⊕" />
+);
+
+export const TransformNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-teal-600" icon="⇢" />
+);
+
+export const DatetimeNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-sky-600" icon="📅" />
+);
+
+export const CryptoNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-gray-700" icon="🔐" />
+);
+
+export const SplitBatchesNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-orange-600" icon="⊞" />
+);
+
+export const ValidateNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-red-700" icon="✓" hasErrorOutput />
+);
+
+export const NoOpNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-gray-500" icon="○" />
+);
+
+export const StopErrorNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-red-900" icon="⛔" hasOutput={false} />
+);
+
+export const JsonPathNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-indigo-600" icon="🔎" />
+);
+
+export const CsvNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-green-700" icon="📊" />
+);
+
+export const HtmlExtractNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-orange-800" icon="🔍" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -108,5 +152,16 @@ export const nodeTypes = {
   memoryRead: MemoryReadNode,
   memoryWrite: MemoryWriteNode,
   ai: AiNode,
+  aggregate: AggregateNode,
+  transform: TransformNode,
+  datetime: DatetimeNode,
+  crypto: CryptoNode,
+  splitBatches: SplitBatchesNode,
+  validate: ValidateNode,
+  noOp: NoOpNode,
+  stopError: StopErrorNode,
+  jsonPath: JsonPathNode,
+  csv: CsvNode,
+  htmlExtract: HtmlExtractNode,
   stickyNote: StickyNoteNode,
 };
