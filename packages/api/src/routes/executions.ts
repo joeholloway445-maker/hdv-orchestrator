@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth";
+import { enqueueWorkflow } from "../queue/producer";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -26,6 +27,23 @@ router.get("/:id", async (req: AuthRequest, res) => {
   });
   if (!execution) return res.status(404).json({ error: "Not found" });
   res.json(execution);
+});
+
+// Retry a failed execution — replays with original trigger data
+router.post("/:id/retry", async (req: AuthRequest, res) => {
+  const original = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: true },
+  });
+  if (!original) return res.status(404).json({ error: "Not found" });
+  if (original.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+
+  const triggerData = (original.data as Record<string, unknown>)?.triggerData ?? {};
+  const fresh = await prisma.execution.create({
+    data: { workflowId: original.workflowId, status: "PENDING" },
+  });
+  await enqueueWorkflow({ workflowId: original.workflowId, executionId: fresh.id, triggerData: triggerData as Record<string, unknown> });
+  res.status(201).json(fresh);
 });
 
 export { router as executionsRouter };

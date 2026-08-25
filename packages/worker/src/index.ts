@@ -3,6 +3,7 @@ import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
+import { startScheduler } from "./scheduler";
 
 const prisma = new PrismaClient();
 
@@ -60,3 +61,5 @@ worker.on("completed", (job) => console.log(`[Worker] Job ${job.id} completed`))
 worker.on("failed", (job, err) => console.error(`[Worker] Job ${job?.id} failed:`, err.message));
 
 console.log("[Worker] Listening on workflow-execution queue...");
+
+startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
