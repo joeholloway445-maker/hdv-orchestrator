@@ -180,10 +180,23 @@ export function ExecutionsPage() {
           <Link to="/dashboard" className="text-gray-400 hover:text-white text-sm">← Dashboard</Link>
           <h1 className="text-xl font-bold">All Executions</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {["", "SUCCESS", "FAILED", "RUNNING", "PENDING"].map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                filter === s
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              {s || "All"}
+            </button>
+          ))}
           <input
-            className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
-            placeholder="Filter by name or status…"
+            className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+            placeholder="Search by name…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />

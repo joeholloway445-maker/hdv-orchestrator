@@ -76,35 +76,36 @@ type NodeStatus = "running" | "success" | "error";
 
 export const NODE_TYPE_CONFIG = [
   // Triggers
-  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger" },
-  { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually" },
-  { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule" },
-  // HTTP & Code
-  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL" },
-  { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS" },
-  { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email" },
-  // Flow control
-  { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing" },
-  { type: "switch", label: "Switch", color: "bg-amber-700", description: "Multi-way routing" },
-  { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches" },
-  { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response" },
+  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger", category: "Triggers" },
+  { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually", category: "Triggers" },
+  { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule", category: "Triggers" },
+  // Core
+  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL", category: "Core" },
+  { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS", category: "Core" },
+  { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email", category: "Core" },
+  { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response", category: "Core" },
+  // Flow
+  { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing", category: "Flow" },
+  { type: "switch", label: "Switch", color: "bg-amber-700", description: "Multi-way routing", category: "Flow" },
+  { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches", category: "Flow" },
+  { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array", category: "Flow" },
+  { type: "splitBatches", label: "Split in Batches", color: "bg-orange-600", description: "Process array in chunks", category: "Flow" },
+  { type: "wait", label: "Wait", color: "bg-slate-600", description: "Delay execution", category: "Flow" },
   // Data
-  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
-  { type: "filter", label: "Filter", color: "bg-emerald-700", description: "Filter array items" },
-  { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array" },
-  { type: "wait", label: "Wait", color: "bg-slate-600", description: "Delay execution" },
-  // Workflows & Memory
-  { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow" },
-  { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
-  { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
-  // AI & Annotation
-  { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic" },
-  { type: "aggregate", label: "Aggregate", color: "bg-lime-700", description: "Collect items into array" },
-  { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output" },
-  { type: "datetime", label: "Date & Time", color: "bg-sky-600", description: "Format, add, diff dates" },
-  { type: "crypto", label: "Crypto / Hash", color: "bg-gray-700", description: "Hash, HMAC, Base64, UUID" },
-  { type: "splitBatches", label: "Split in Batches", color: "bg-orange-600", description: "Process array in chunks" },
-  { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
+  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields", category: "Data" },
+  { type: "filter", label: "Filter", color: "bg-emerald-700", description: "Filter array items", category: "Data" },
+  { type: "aggregate", label: "Aggregate", color: "bg-lime-700", description: "Collect items into array", category: "Data" },
+  { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output", category: "Data" },
+  { type: "datetime", label: "Date & Time", color: "bg-sky-600", description: "Format, add, diff dates", category: "Data" },
+  { type: "crypto", label: "Crypto / Hash", color: "bg-gray-700", description: "Hash, HMAC, Base64, UUID", category: "Data" },
+  // AI & Memory
+  { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic", category: "AI" },
+  { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory", category: "AI" },
+  { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory", category: "AI" },
+  // Workflows
+  { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
+  // Utilities
+  { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
 function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
