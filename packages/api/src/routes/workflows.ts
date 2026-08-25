@@ -64,14 +64,15 @@ router.post("/:id/execute", async (req: AuthRequest, res) => {
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
+  const triggerData = req.body.data || {};
   const execution = await prisma.execution.create({
-    data: { workflowId: workflow.id, status: "PENDING" },
+    data: { workflowId: workflow.id, status: "PENDING", data: { triggerData } },
   });
 
   await enqueueWorkflow({
     workflowId: workflow.id,
     executionId: execution.id,
-    triggerData: req.body.data || {},
+    triggerData,
   });
 
   res.status(202).json(execution);

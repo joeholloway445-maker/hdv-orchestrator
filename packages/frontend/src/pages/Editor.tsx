@@ -65,11 +65,13 @@ type NodeStatus = "running" | "success" | "error";
 export const NODE_TYPE_CONFIG = [
   { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger" },
   { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually" },
+  { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule" },
   { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL" },
   { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS" },
   { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing" },
   { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
   { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches" },
+  { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array" },
   { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
 ];
@@ -104,6 +106,62 @@ export function EditorPage() {
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+
+  // Undo/redo history
+  const historyRef = useRef<Array<{ nodes: Node<NodeData>[]; edges: Edge[] }>>([]);
+  const historyIdxRef = useRef(-1);
+  const skipHistoryRef = useRef(false);
+
+  function pushHistory(ns: Node<NodeData>[], es: Edge[]) {
+    if (skipHistoryRef.current) return;
+    const stack = historyRef.current.slice(0, historyIdxRef.current + 1);
+    stack.push({ nodes: ns, edges: es });
+    historyRef.current = stack.slice(-50);
+    historyIdxRef.current = historyRef.current.length - 1;
+  }
+
+  function undo() {
+    if (historyIdxRef.current <= 0) return;
+    historyIdxRef.current -= 1;
+    const snap = historyRef.current[historyIdxRef.current];
+    skipHistoryRef.current = true;
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+    skipHistoryRef.current = false;
+  }
+
+  function redo() {
+    if (historyIdxRef.current >= historyRef.current.length - 1) return;
+    historyIdxRef.current += 1;
+    const snap = historyRef.current[historyIdxRef.current];
+    skipHistoryRef.current = true;
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+    skipHistoryRef.current = false;
+  }
+
+  // Push history on structural changes
+  const prevNodesRef = useRef<Node<NodeData>[]>([]);
+  const prevEdgesRef = useRef<Edge[]>([]);
+
+  useEffect(() => {
+    const nodesChanged = nodes !== prevNodesRef.current;
+    const edgesChanged = edges !== prevEdgesRef.current;
+    if ((nodesChanged || edgesChanged) && !skipHistoryRef.current) {
+      pushHistory(nodes, edges);
+      prevNodesRef.current = nodes;
+      prevEdgesRef.current = edges;
+    }
+  }, [nodes, edges]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     api.get(`/workflows/${id}`).then(({ data }) => {
@@ -145,6 +203,13 @@ export function EditorPage() {
 
   function refreshExecutions() {
     api.get(`/executions/workflow/${id}`).then(({ data }) => setExecutions(data as ExecutionRecord[]));
+  }
+
+  async function retryExecution(execId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const { data } = await api.post(`/executions/${execId}/retry`);
+    const fresh = data as ExecutionRecord;
+    setExecutions((prev) => [fresh, ...prev]);
   }
 
   async function loadExecutionLogs(execId: string) {
@@ -358,10 +423,10 @@ export function EditorPage() {
                 <p className="text-gray-600 text-xs p-4">No executions yet</p>
               ) : (
                 executions.map((ex) => (
-                  <button
+                  <div
                     key={ex.id}
                     onClick={() => loadExecutionLogs(ex.id)}
-                    className="w-full text-left px-4 py-3 border-b border-gray-700 hover:bg-gray-700/50 transition"
+                    className="w-full text-left px-4 py-3 border-b border-gray-700 hover:bg-gray-700/50 transition cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -375,12 +440,21 @@ export function EditorPage() {
                                 : "bg-gray-500"
                         }`}
                       />
-                      <span className="text-xs text-gray-300 capitalize">{ex.status.toLowerCase()}</span>
+                      <span className="text-xs text-gray-300 capitalize flex-1">{ex.status.toLowerCase()}</span>
+                      {(ex.status === "FAILED" || ex.status === "SUCCESS") && (
+                        <button
+                          onClick={(e) => retryExecution(ex.id, e)}
+                          className="text-gray-500 hover:text-blue-400 text-xs px-1 transition"
+                          title="Retry"
+                        >
+                          ↺
+                        </button>
+                      )}
                     </div>
                     <p className="text-gray-500 text-xs mt-1">
                       {new Date(ex.startedAt).toLocaleString()}
                     </p>
-                  </button>
+                  </div>
                 ))
               )}
             </div>

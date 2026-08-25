@@ -11,6 +11,10 @@ export const ManualTriggerNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-indigo-700" icon="▶" hasInput={false} />
 );
 
+export const ScheduleTriggerNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-indigo-800" icon="🕐" hasInput={false} />
+);
+
 export const HttpRequestNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-blue-700" icon="🌐" />
 );
@@ -31,6 +35,10 @@ export const MergeNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-pink-700" icon="⇒" />
 );
 
+export const LoopNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-violet-700" icon="↺" />
+);
+
 export const MemoryReadNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-cyan-700" icon="📖" />
 );
@@ -42,11 +50,13 @@ export const MemoryWriteNode = (props: NodeProps<ND>) => (
 export const nodeTypes = {
   webhookTrigger: WebhookTriggerNode,
   manualTrigger: ManualTriggerNode,
+  scheduleTrigger: ScheduleTriggerNode,
   httpRequest: HttpRequestNode,
   code: CodeNode,
   ifBranch: IfBranchNode,
   set: SetNode,
   merge: MergeNode,
+  loop: LoopNode,
   memoryRead: MemoryReadNode,
   memoryWrite: MemoryWriteNode,
 };

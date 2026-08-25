@@ -5,6 +5,7 @@ import { executeCode } from "./code";
 import { executeIfBranch } from "./ifBranch";
 import { executeSet } from "./set";
 import { executeMemoryRead, executeMemoryWrite } from "./memory";
+import { executeLoop } from "./loop";
 
 interface NodeDef {
   id: string;
@@ -21,6 +22,7 @@ export async function executeNode(
   switch (nodeType) {
     case "webhookTrigger":
     case "manualTrigger":
+    case "scheduleTrigger":
       return executeWebhookTrigger(node, $input);
     case "httpRequest":
       return executeHttpRequest(node, $input);
@@ -31,8 +33,9 @@ export async function executeNode(
     case "set":
       return executeSet(node, $input);
     case "merge":
-      // Merge just passes through input (DAG already merged parent outputs into { items: [...] })
       return $input;
+    case "loop":
+      return executeLoop(node, $input);
     case "memoryRead":
       return executeMemoryRead(node, $input, prisma!);
     case "memoryWrite":

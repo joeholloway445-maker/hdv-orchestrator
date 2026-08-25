@@ -13,6 +13,8 @@ interface NodeData {
   mappings?: Array<{ key: string; value: string }>;
   key?: string;
   workflowId?: string;
+  cronExpression?: string;
+  arrayKey?: string;
   [key: string]: unknown;
 }
 
@@ -305,6 +307,76 @@ export function NodeConfigPanel({
                     onChange={(e) => patch({ workflowId: e.target.value })}
                     placeholder="(optional)"
                   />
+                </div>
+              </>
+            )}
+
+            {nodeType === "scheduleTrigger" && (
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Cron Expression</label>
+                <input
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={local.cronExpression || ""}
+                  onChange={(e) => patch({ cronExpression: e.target.value })}
+                  placeholder="*/5 * * * *"
+                />
+                <p className="text-xs text-gray-500 mt-1">Workflow must be Active for schedule to run</p>
+                <p className="text-xs text-gray-500 mt-0.5">min hour day month weekday</p>
+              </div>
+            )}
+
+            {nodeType === "loop" && (
+              <>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Array Field Name</label>
+                  <input
+                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={local.arrayKey || ""}
+                    onChange={(e) => patch({ arrayKey: e.target.value })}
+                    placeholder="items"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Field on $input that holds the array to iterate</p>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Item Mappings (optional)</label>
+                  <div className="space-y-2">
+                    {mappings.map((m, i) => (
+                      <div key={i} className="flex gap-1">
+                        <input
+                          className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                          placeholder="key"
+                          value={m.key}
+                          onChange={(e) => {
+                            const next = [...mappings];
+                            next[i] = { ...next[i], key: e.target.value };
+                            patch({ mappings: next });
+                          }}
+                        />
+                        <input
+                          className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                          placeholder="{{item.field}}"
+                          value={m.value}
+                          onChange={(e) => {
+                            const next = [...mappings];
+                            next[i] = { ...next[i], value: e.target.value };
+                            patch({ mappings: next });
+                          }}
+                        />
+                        <button
+                          onClick={() => patch({ mappings: mappings.filter((_, j) => j !== i) })}
+                          className="text-gray-500 hover:text-red-400 px-1"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => patch({ mappings: [...mappings, { key: "", value: "" }] })}
+                      className="text-blue-400 text-xs hover:underline"
+                    >
+                      + Add mapping
+                    </button>
+                  </div>
                 </div>
               </>
             )}
