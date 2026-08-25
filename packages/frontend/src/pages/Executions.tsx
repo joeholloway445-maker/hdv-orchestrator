@@ -118,7 +118,20 @@ function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDeta
               Open in Editor →
             </Link>
           )}
-          <span />
+          <button
+            onClick={() => {
+              const blob = new Blob([JSON.stringify({ id: execution.id, status: execution.status, startedAt: execution.startedAt, finishedAt: execution.finishedAt, nodeLogs: execution.nodeLogs }, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `execution-${execution.id.slice(0, 8)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-xs text-gray-400 hover:text-white transition"
+          >
+            ↓ Download JSON
+          </button>
         </div>
       </div>
     </div>
@@ -131,6 +144,7 @@ export function ExecutionsPage() {
   const [filter, setFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -143,6 +157,12 @@ export function ExecutionsPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
 
   async function openDetail(e: ExecutionRow) {
     const { data } = await api.get(`/executions/${e.id}`);
@@ -209,6 +229,13 @@ export function ExecutionsPage() {
           />
           <button onClick={load} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
             Refresh
+          </button>
+          <button
+            onClick={() => setAutoRefresh((a) => !a)}
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${autoRefresh ? "bg-green-700 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+            title="Auto-refresh every 5 seconds"
+          >
+            {autoRefresh ? "⟳ Live" : "⟳ Off"}
           </button>
         </div>
       </header>

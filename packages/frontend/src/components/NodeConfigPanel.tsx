@@ -336,7 +336,15 @@ export function NodeConfigPanel({
                   <button onClick={generateWebhookId} className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-3 text-sm transition">Gen</button>
                 </div>
                 {local.webhookId && (
-                  <p className="text-xs text-gray-500 mt-1 font-mono break-all">POST {webhookBaseUrl}/webhooks/trigger/{local.webhookId}</p>
+                  <div className="mt-1">
+                    <p className="text-xs text-gray-500 font-mono break-all">{webhookBaseUrl}/webhooks/trigger/{local.webhookId}</p>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(`${webhookBaseUrl}/webhooks/trigger/${local.webhookId}`)}
+                      className="text-xs text-blue-400 hover:underline mt-0.5"
+                    >
+                      Copy URL
+                    </button>
+                  </div>
                 )}
                 <label className="flex items-center gap-2 mt-2 cursor-pointer">
                   <input
