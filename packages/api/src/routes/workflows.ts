@@ -10,6 +10,14 @@ router.get("/", async (req: AuthRequest, res) => {
   const workflows = await prisma.workflow.findMany({
     where: { userId: req.userId! },
     orderBy: { updatedAt: "desc" },
+    include: {
+      _count: { select: { executions: true } },
+      executions: {
+        orderBy: { startedAt: "desc" },
+        take: 1,
+        select: { status: true, startedAt: true },
+      },
+    },
   });
   res.json(workflows);
 });

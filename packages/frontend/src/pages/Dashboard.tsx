@@ -8,6 +8,8 @@ interface Workflow {
   name: string;
   active: boolean;
   updatedAt: string;
+  _count?: { executions: number };
+  executions?: Array<{ status: string; startedAt: string }>;
 }
 
 export function DashboardPage() {
@@ -144,15 +146,34 @@ export function DashboardPage() {
                 key={wf.id}
                 className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-gray-600 transition"
               >
-                <div>
-                  <h3 className="font-semibold text-white">{wf.name}</h3>
-                  <p className="text-gray-500 text-sm mt-0.5">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-white truncate">{wf.name}</h3>
+                  <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
                     {wf.active ? (
                       <span className="text-green-400">● Active</span>
                     ) : (
                       <span className="text-gray-600">○ Inactive</span>
-                    )}{" "}
-                    · {new Date(wf.updatedAt).toLocaleDateString()}
+                    )}
+                    <span>·</span>
+                    <span>Updated {new Date(wf.updatedAt).toLocaleDateString()}</span>
+                    {wf._count && (
+                      <>
+                        <span>·</span>
+                        <span className="text-gray-500">{wf._count.executions} run{wf._count.executions !== 1 ? "s" : ""}</span>
+                      </>
+                    )}
+                    {wf.executions?.[0] && (
+                      <>
+                        <span>·</span>
+                        <span className={
+                          wf.executions[0].status === "SUCCESS" ? "text-green-500" :
+                          wf.executions[0].status === "FAILED" ? "text-red-400" :
+                          "text-yellow-400"
+                        }>
+                          Last: {wf.executions[0].status.toLowerCase()}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex gap-2">
