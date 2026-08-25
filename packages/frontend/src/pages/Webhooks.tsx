@@ -16,7 +16,7 @@ export function WebhooksPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const apiBase = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000";
+  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
 
   useEffect(() => {
     api.get("/webhooks/list").then(({ data }) => {

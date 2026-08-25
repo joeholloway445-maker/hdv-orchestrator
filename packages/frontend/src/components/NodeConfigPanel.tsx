@@ -404,7 +404,11 @@ export function NodeConfigPanel({
               <div className="space-y-2">
                 <label className={labelCls}>Cron Expression</label>
                 <input className={inputCls + " font-mono"} value={local.cronExpression || ""} onChange={(e) => patch({ cronExpression: e.target.value })} placeholder="*/5 * * * *" />
-                <p className="text-xs text-gray-500">min hour day month weekday · Workflow must be Active</p>
+                <p className="text-xs text-gray-500">min hour day month weekday (UTC) · Workflow must be Active</p>
+                <div>
+                  <label className={labelCls}>Timezone (IANA, e.g. America/New_York)</label>
+                  <input className={inputCls + " font-mono"} value={(local.timezone as string) || ""} onChange={(e) => patch({ timezone: e.target.value || undefined })} placeholder="UTC" />
+                </div>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {[
                     { label: "Every minute", value: "* * * * *" },
@@ -760,8 +764,8 @@ export function NodeConfigPanel({
             {nodeType === "switch" && (
               <>
                 <div>
-                  <label className={labelCls}>Value Field (dot path from $input)</label>
-                  <input className={inputCls} value={local.field || ""} onChange={(e) => patch({ field: e.target.value })} placeholder="status" />
+                  <label className={labelCls}>Value Field (supports {`{{$input.field}}`})</label>
+                  <ExpressionInput value={local.field || ""} onChange={(v) => patch({ field: v })} placeholder="{{$input.status}}" suggestions={inputSuggestions} />
                 </div>
                 <div>
                   <label className={labelCls}>Cases → output handle name</label>
