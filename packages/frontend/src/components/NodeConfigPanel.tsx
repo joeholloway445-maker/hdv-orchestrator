@@ -96,6 +96,7 @@ interface Props {
   onClose: () => void;
   webhookBaseUrl?: string;
   nodeLog?: NodeLog | null;
+  inputSuggestions?: string[];
 }
 
 interface FieldRule {
@@ -212,6 +213,7 @@ export function NodeConfigPanel({
   onClose,
   webhookBaseUrl = "http://localhost:4000",
   nodeLog,
+  inputSuggestions,
 }: Props) {
   const [local, setLocal] = useState<NodeData>(node.data);
   const [tab, setTab] = useState<"config" | "output">("config");
@@ -464,7 +466,7 @@ export function NodeConfigPanel({
                 ) : (
                   <div>
                     <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
-                    <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
+                    <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} suggestions={inputSuggestions} />
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -808,15 +810,15 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>To (supports {`{{$input.email}}`})</label>
-                  <ExpressionInput value={local.to || ""} onChange={(v) => patch({ to: v })} placeholder="{{$input.email}}" />
+                  <ExpressionInput value={local.to || ""} onChange={(v) => patch({ to: v })} placeholder="{{$input.email}}" suggestions={inputSuggestions} />
                 </div>
                 <div>
                   <label className={labelCls}>Subject</label>
-                  <ExpressionInput value={local.subject || ""} onChange={(v) => patch({ subject: v })} placeholder="Hello {{$input.name}}" />
+                  <ExpressionInput value={local.subject || ""} onChange={(v) => patch({ subject: v })} placeholder="Hello {{$input.name}}" suggestions={inputSuggestions} />
                 </div>
                 <div>
                   <label className={labelCls}>Body</label>
-                  <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder="Hi {{$input.name}}, ..." className={inputCls + " resize-none"} />
+                  <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder="Hi {{$input.name}}, ..." className={inputCls + " resize-none"} suggestions={inputSuggestions} />
                 </div>
               </>
             )}
@@ -839,7 +841,7 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>Response Body (JSON, supports {`{{$input.field}}`})</label>
-                  <ExpressionInput multiline value={local.responseBody || ""} onChange={(v) => patch({ responseBody: v })} placeholder={'{"ok": true, "id": "{{$input.id}}"}'} className={inputCls + " font-mono resize-none"} />
+                  <ExpressionInput multiline value={local.responseBody || ""} onChange={(v) => patch({ responseBody: v })} placeholder={'{"ok": true, "id": "{{$input.id}}"}'} className={inputCls + " font-mono resize-none"} suggestions={inputSuggestions} />
                   <p className="text-xs text-gray-500 mt-1">Leave blank to echo $input as-is</p>
                 </div>
               </>
@@ -878,11 +880,11 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>System Prompt (supports {`{{$input.field}}`})</label>
-                  <ExpressionInput multiline value={local.systemPrompt || ""} onChange={(v) => patch({ systemPrompt: v })} placeholder="You are a helpful assistant." className={inputCls + " resize-none"} />
+                  <ExpressionInput multiline value={local.systemPrompt || ""} onChange={(v) => patch({ systemPrompt: v })} placeholder="You are a helpful assistant." className={inputCls + " resize-none"} suggestions={inputSuggestions} />
                 </div>
                 <div>
                   <label className={labelCls}>User Prompt (supports {`{{$input.field}}`})</label>
-                  <ExpressionInput multiline value={local.userPrompt || ""} onChange={(v) => patch({ userPrompt: v })} placeholder="Summarize this: {{$input.text}}" className={inputCls + " resize-none"} />
+                  <ExpressionInput multiline value={local.userPrompt || ""} onChange={(v) => patch({ userPrompt: v })} placeholder="Summarize this: {{$input.text}}" className={inputCls + " resize-none"} suggestions={inputSuggestions} />
                 </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -977,13 +979,13 @@ export function NodeConfigPanel({
                 {local.operation !== "now" && (
                   <div>
                     <label className={labelCls}>Input Date</label>
-                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.date}} or 2024-01-01" />
+                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.date}} or 2024-01-01" suggestions={inputSuggestions} />
                   </div>
                 )}
                 {(local.operation === "diff" || local.operation === "isAfter" || local.operation === "isBefore") && (
                   <div>
                     <label className={labelCls}>Compare Date</label>
-                    <ExpressionInput value={local.compareField || ""} onChange={(v) => patch({ compareField: v })} placeholder="{{body.endDate}}" />
+                    <ExpressionInput value={local.compareField || ""} onChange={(v) => patch({ compareField: v })} placeholder="{{body.endDate}}" suggestions={inputSuggestions} />
                   </div>
                 )}
                 {(local.operation === "add" || local.operation === "subtract" || local.operation === "diff" || local.operation === "startOf" || local.operation === "endOf") && (
@@ -1046,7 +1048,7 @@ export function NodeConfigPanel({
                 {local.operation !== "uuid" && (
                   <div>
                     <label className={labelCls}>Input Value</label>
-                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.text}}" />
+                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.text}}" suggestions={inputSuggestions} />
                   </div>
                 )}
                 {(local.operation === "hmac_sha256" || local.operation === "hmac_sha512") && (

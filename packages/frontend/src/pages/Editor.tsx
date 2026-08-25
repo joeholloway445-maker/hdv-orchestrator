@@ -475,6 +475,30 @@ export function EditorPage() {
     ? nodeLogs.find((l) => l.nodeId === selectedNode.id) ?? null
     : null;
 
+  // Compute input field suggestions from the last output of parent node(s)
+  const inputSuggestions: string[] = (() => {
+    if (!selectedNode) return [];
+    const parentIds = edges.filter((e) => e.target === selectedNode.id).map((e) => e.source);
+    const parentOutputs = parentIds
+      .map((pid) => nodeLogs.find((l) => l.nodeId === pid)?.output)
+      .filter((o): o is Record<string, unknown> => o !== null && o !== undefined && typeof o === "object" && !Array.isArray(o));
+    if (parentOutputs.length === 0) return [];
+    const merged = Object.assign({}, ...parentOutputs);
+    function flatten(obj: Record<string, unknown>, prefix = "$input"): string[] {
+      const keys: string[] = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (k.startsWith("_")) continue;
+        const path = `${prefix}.${k}`;
+        keys.push(path);
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          keys.push(...flatten(v as Record<string, unknown>, path));
+        }
+      }
+      return keys;
+    }
+    return [...new Set(["$input", ...flatten(merged)])].slice(0, 40);
+  })();
+
   const displayNodes = nodes.map((n) => {
     const status = nodeStatuses[n.id];
     const log = nodeLogs.find((l) => l.nodeId === n.id);
@@ -776,6 +800,7 @@ export function EditorPage() {
             onUpdate={(data) => updateNodeData(selectedNode.id, data)}
             onClose={() => setSelectedNode(null)}
             nodeLog={selectedNodeLog}
+            inputSuggestions={inputSuggestions}
           />
         )}
       </div>
