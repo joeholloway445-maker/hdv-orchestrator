@@ -1,41 +1,34 @@
 /**
- * Security regression tests (run with: npx ts-node tests/security.test.ts)
+ * tests/security.test.ts — Security regression tests using node:test.
  *
  * Covers:
- * 1. GET /executions/:id returns 403 when the execution belongs to a different user
- * 2. HTTP node throws when the target is a loopback/private address (SSRF guard)
+ *  A. Execution ownership — 403 when requesting another user's execution
+ *  B. SSRF guard — private/loopback IPv4 and IPv6 addresses are blocked
+ *  C. isPrivateIp boundary cases — 172.x.x.x range edges, link-local
+ *  D. Auth header parsing — Bearer prefix required
+ *
+ * Run: node --require ts-node/register --test tests/security.test.ts
  */
 
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import dns from "dns/promises";
 
-// ── 1. Execution ownership check ─────────────────────────────────────────────
-// Simulate the route handler logic in isolation
-async function simulateGetExecution(
-  executionOwnerId: string,
-  requestUserId: string,
-): Promise<number> {
-  // Mirrors the logic in packages/api/src/routes/executions.ts GET /:id
-  const execution = { workflow: { userId: executionOwnerId } };
+// ---------------------------------------------------------------------------
+// Helpers — copied logic from route/middleware sources so they can be tested
+// in isolation without spinning up Express or Prisma.
+// ---------------------------------------------------------------------------
+
+function simulateOwnershipCheck(ownerId: string, requestUserId: string): number {
+  const execution = { workflow: { userId: ownerId } };
   if (!execution) return 404;
   if (execution.workflow.userId !== requestUserId) return 403;
   return 200;
 }
 
-async function testOwnershipCheck() {
-  const status403 = await simulateGetExecution("user-alice", "user-bob");
-  assert.equal(status403, 403, "Different user should get 403");
-
-  const status200 = await simulateGetExecution("user-alice", "user-alice");
-  assert.equal(status200, 200, "Owner should get 200");
-
-  console.log("  PASS: execution ownership check");
-}
-
-// ── 2. SSRF guard — private/loopback addresses ───────────────────────────────
-// Mirrors the logic in packages/worker/src/nodes/http.ts
-
 function isPrivateIp(ip: string): boolean {
+  // IPv6 loopback
+  if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") return true;
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4 || parts.some(isNaN)) return false;
   const [a, b] = parts;
@@ -70,47 +63,123 @@ async function assertPublicUrl(rawUrl: string): Promise<void> {
   }
 }
 
-async function testSsrfGuard() {
-  const privateUrls = [
-    "http://127.0.0.1/secret",
-    "http://127.0.0.1:8080/api",
-    "http://10.0.0.1/internal",
-    "http://192.168.1.1/admin",
-    "http://169.254.169.254/latest/meta-data/",
-  ];
+// ---------------------------------------------------------------------------
+// A. Execution ownership check
+// ---------------------------------------------------------------------------
 
-  for (const url of privateUrls) {
-    await assert.rejects(
-      () => assertPublicUrl(url),
-      /private|loopback|not allowed/i,
-      `Expected ${url} to be rejected`,
-    );
-  }
+test("ownership: different user gets 403", () => {
+  assert.equal(simulateOwnershipCheck("alice", "bob"), 403);
+});
 
-  console.log("  PASS: SSRF guard blocks private/loopback URLs");
+test("ownership: owner gets 200", () => {
+  assert.equal(simulateOwnershipCheck("alice", "alice"), 200);
+});
+
+test("ownership: empty userId gets 403", () => {
+  assert.equal(simulateOwnershipCheck("alice", ""), 403);
+});
+
+// ---------------------------------------------------------------------------
+// B. SSRF guard — private/loopback addresses rejected
+// ---------------------------------------------------------------------------
+
+test("SSRF: blocks 127.0.0.1", async () => {
+  await assert.rejects(() => assertPublicUrl("http://127.0.0.1/secret"), /private|loopback|not allowed/i);
+});
+
+test("SSRF: blocks 127.0.0.1 with port", async () => {
+  await assert.rejects(() => assertPublicUrl("http://127.0.0.1:8080/api"), /private|loopback|not allowed/i);
+});
+
+test("SSRF: blocks 10.x.x.x", async () => {
+  await assert.rejects(() => assertPublicUrl("http://10.0.0.1/internal"), /private|loopback|not allowed/i);
+});
+
+test("SSRF: blocks 192.168.x.x", async () => {
+  await assert.rejects(() => assertPublicUrl("http://192.168.1.1/admin"), /private|loopback|not allowed/i);
+});
+
+test("SSRF: blocks link-local 169.254.x.x (AWS IMDS)", async () => {
+  await assert.rejects(() => assertPublicUrl("http://169.254.169.254/latest/meta-data/"), /private|loopback|not allowed/i);
+});
+
+// ---------------------------------------------------------------------------
+// C. isPrivateIp boundary and edge cases
+// ---------------------------------------------------------------------------
+
+test("isPrivateIp: 10.0.0.0 is private", () => {
+  assert.equal(isPrivateIp("10.0.0.0"), true);
+});
+
+test("isPrivateIp: 10.255.255.255 is private", () => {
+  assert.equal(isPrivateIp("10.255.255.255"), true);
+});
+
+test("isPrivateIp: 172.15.0.1 is public (below 172.16)", () => {
+  assert.equal(isPrivateIp("172.15.0.1"), false);
+});
+
+test("isPrivateIp: 172.16.0.1 is private (lower bound)", () => {
+  assert.equal(isPrivateIp("172.16.0.1"), true);
+});
+
+test("isPrivateIp: 172.31.255.255 is private (upper bound)", () => {
+  assert.equal(isPrivateIp("172.31.255.255"), true);
+});
+
+test("isPrivateIp: 172.32.0.1 is public (above 172.31)", () => {
+  assert.equal(isPrivateIp("172.32.0.1"), false);
+});
+
+test("isPrivateIp: 192.167.0.1 is public", () => {
+  assert.equal(isPrivateIp("192.167.0.1"), false);
+});
+
+test("isPrivateIp: 192.169.0.1 is public", () => {
+  assert.equal(isPrivateIp("192.169.0.1"), false);
+});
+
+test("isPrivateIp: 169.254.0.1 is private link-local", () => {
+  assert.equal(isPrivateIp("169.254.0.1"), true);
+});
+
+test("isPrivateIp: IPv6 loopback ::1 is private", () => {
+  assert.equal(isPrivateIp("::1"), true);
+});
+
+test("isPrivateIp: public IPv4 8.8.8.8 is not private", () => {
+  assert.equal(isPrivateIp("8.8.8.8"), false);
+});
+
+test("isPrivateIp: non-IP string returns false", () => {
+  assert.equal(isPrivateIp("not-an-ip"), false);
+});
+
+// ---------------------------------------------------------------------------
+// D. Auth header parsing
+// ---------------------------------------------------------------------------
+
+function extractBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  return authHeader.slice(7) || null;
 }
 
-// ── Runner ───────────────────────────────────────────────────────────────────
-(async () => {
-  let failed = false;
+test("auth: valid Bearer header extracts token", () => {
+  assert.equal(extractBearerToken("Bearer mytoken123"), "mytoken123");
+});
 
-  for (const [name, fn] of [
-    ["execution ownership check", testOwnershipCheck],
-    ["SSRF guard", testSsrfGuard],
-  ] as [string, () => Promise<void>][]) {
-    try {
-      console.log(`\nRunning: ${name}`);
-      await fn();
-    } catch (err) {
-      console.error(`  FAIL: ${name}`);
-      console.error(err);
-      failed = true;
-    }
-  }
+test("auth: missing header returns null", () => {
+  assert.equal(extractBearerToken(undefined), null);
+});
 
-  if (failed) {
-    process.exit(1);
-  } else {
-    console.log("\nAll tests passed.");
-  }
-})();
+test("auth: wrong prefix returns null", () => {
+  assert.equal(extractBearerToken("Token mytoken123"), null);
+});
+
+test("auth: Basic auth returns null", () => {
+  assert.equal(extractBearerToken("Basic dXNlcjpwYXNz"), null);
+});
+
+test("auth: Bearer with empty token returns null", () => {
+  assert.equal(extractBearerToken("Bearer "), null);
+});
