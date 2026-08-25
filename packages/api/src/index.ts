@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import http from "http";
+import rateLimit from "express-rate-limit";
 import { Server as SocketIOServer } from "socket.io";
 import { authRouter } from "./routes/auth";
 import { workflowsRouter } from "./routes/workflows";
@@ -25,6 +26,29 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Global rate limit: 300 req/min per IP
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later." },
+  })
+);
+
+// Auth routes get a stricter limit to slow brute-force
+app.use(
+  "/auth",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many auth attempts, please try again later." },
+  })
+);
 
 app.use("/auth", authRouter);
 app.use("/webhooks/list", verifyToken, webhooksRouter);

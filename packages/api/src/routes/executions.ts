@@ -24,7 +24,8 @@ router.get("/", async (req: AuthRequest, res) => {
     take: limit,
     include: { workflow: { select: { id: true, name: true } } },
   });
-  res.json(executions);
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
 });
 
 router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
@@ -33,12 +34,16 @@ router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
   const executions = await prisma.execution.findMany({
-    where: { workflowId: req.params.workflowId },
+    where: { workflowId: req.params.workflowId, ...(cursor ? { id: { lt: cursor } } : {}) },
     orderBy: { startedAt: "desc" },
-    take: 50,
+    take: limit,
   });
-  res.json(executions);
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
 });
 
 router.get("/:id", async (req: AuthRequest, res) => {

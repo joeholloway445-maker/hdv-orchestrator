@@ -7,9 +7,13 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req: AuthRequest, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
   const workflows = await prisma.workflow.findMany({
-    where: { userId: req.userId! },
+    where: { userId: req.userId!, ...(cursor ? { id: { lt: cursor } } : {}) },
     orderBy: { updatedAt: "desc" },
+    take: limit,
     include: {
       _count: { select: { executions: true } },
       executions: {
@@ -19,7 +23,8 @@ router.get("/", async (req: AuthRequest, res) => {
       },
     },
   });
-  res.json(workflows);
+  const nextCursor = workflows.length === limit ? workflows[workflows.length - 1].id : null;
+  res.json({ items: workflows, nextCursor });
 });
 
 router.post("/", async (req: AuthRequest, res) => {
