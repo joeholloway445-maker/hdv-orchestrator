@@ -38,6 +38,11 @@ interface NodeData {
   queryParams?: Array<{ key: string; value: string }>;
   customHeaders?: Array<{ key: string; value: string }>;
   timeout?: string;
+  contentType?: string;
+  formFields?: Array<{ key: string; value: string }>;
+  outputKey?: string;
+  flatten?: boolean;
+  keepInput?: boolean;
   apiKey?: string;
   model?: string;
   systemPrompt?: string;
@@ -112,6 +117,7 @@ export function NodeConfigPanel({
   const cases = local.cases || [];
   const queryParams = local.queryParams || [];
   const customHeaders = local.customHeaders || [];
+  const formFields = local.formFields || [];
 
   const inputCls = "w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
   const labelCls = "text-gray-400 text-xs mb-1 block";
@@ -243,9 +249,34 @@ export function NodeConfigPanel({
                   <input className={inputCls} value={local.url || ""} onChange={(e) => patch({ url: e.target.value })} placeholder="https://api.example.com/endpoint" />
                 </div>
                 <div>
-                  <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
-                  <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
+                  <label className={labelCls}>Content Type</label>
+                  <select className={inputCls} value={local.contentType || "json"} onChange={(e) => patch({ contentType: e.target.value })}>
+                    <option value="json">JSON body</option>
+                    <option value="form">multipart/form-data</option>
+                    <option value="urlencoded">application/x-www-form-urlencoded</option>
+                    <option value="raw">Raw text body</option>
+                  </select>
                 </div>
+                {(local.contentType === "form" || local.contentType === "urlencoded") ? (
+                  <div>
+                    <label className={labelCls}>Form Fields</label>
+                    <div className="space-y-1">
+                      {formFields.map((f, i) => (
+                        <div key={i} className="flex gap-1">
+                          <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="field" value={f.key} onChange={(e) => { const n = [...formFields]; n[i] = { ...n[i], key: e.target.value }; patch({ formFields: n }); }} />
+                          <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.value}}" value={f.value} onChange={(e) => { const n = [...formFields]; n[i] = { ...n[i], value: e.target.value }; patch({ formFields: n }); }} />
+                          <button onClick={() => patch({ formFields: formFields.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
+                        </div>
+                      ))}
+                      <button onClick={() => patch({ formFields: [...formFields, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add field</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
+                    <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
+                  </div>
+                )}
                 <div>
                   <label className={labelCls}>Timeout (ms, default 30000)</label>
                   <input className={inputCls} type="number" min="1000" max="300000" value={local.timeout || "30000"} onChange={(e) => patch({ timeout: e.target.value })} />
@@ -518,6 +549,49 @@ export function NodeConfigPanel({
                   <input className={inputCls} value={local.baseUrl || ""} onChange={(e) => patch({ baseUrl: e.target.value })} placeholder="https://api.anthropic.com" />
                 </div>
                 <p className="text-xs text-gray-500">Output: aiText, aiResult (JSON-parsed if valid), aiModel, aiUsage</p>
+              </>
+            )}
+
+            {/* Aggregate */}
+            {nodeType === "aggregate" && (
+              <>
+                <div>
+                  <label className={labelCls}>Input Array Field (default: items)</label>
+                  <input className={inputCls} value={local.arrayKey || ""} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field Name (default: results)</label>
+                  <input className={inputCls} value={(local.outputKey as string) || ""} onChange={(e) => patch({ outputKey: e.target.value })} placeholder="results" />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!local.flatten} onChange={(e) => patch({ flatten: e.target.checked })} className="accent-blue-500" />
+                  <span className="text-gray-300 text-xs">Flatten one level (for arrays of arrays)</span>
+                </label>
+                <p className="text-xs text-gray-500">Also outputs `count` with the number of items.</p>
+              </>
+            )}
+
+            {/* Transform */}
+            {nodeType === "transform" && (
+              <>
+                <div>
+                  <label className={labelCls}>Field Mappings (output key → expression)</label>
+                  <div className="space-y-2">
+                    {mappings.map((m, i) => (
+                      <div key={i} className="flex gap-1">
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="output.key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
+                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.field}}" value={m.value} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], value: e.target.value }; patch({ mappings: n }); }} />
+                        <button onClick={() => patch({ mappings: mappings.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
+                      </div>
+                    ))}
+                    <button onClick={() => patch({ mappings: [...mappings, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add mapping</button>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!local.keepInput} onChange={(e) => patch({ keepInput: e.target.checked })} className="accent-blue-500" />
+                  <span className="text-gray-300 text-xs">Keep $input fields in output (extend mode)</span>
+                </label>
+                <p className="text-xs text-gray-500">Dot-path keys build nested objects: user.name → {`{ user: { name: ... } }`}</p>
               </>
             )}
 

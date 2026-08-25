@@ -1,4 +1,5 @@
 import axios from "axios";
+import FormData from "form-data";
 import { PrismaClient } from "@prisma/client";
 import { decrypt } from "../lib/crypto";
 
@@ -33,6 +34,8 @@ export async function executeHttpRequest(
     queryParams = [],
     customHeaders = [],
     timeout: rawTimeout,
+    contentType = "json",
+    formFields = [],
   } = node.data as {
     method?: string;
     url?: string;
@@ -43,13 +46,34 @@ export async function executeHttpRequest(
     queryParams?: KVPair[];
     customHeaders?: KVPair[];
     timeout?: string | number;
+    contentType?: "json" | "form" | "urlencoded" | "raw";
+    formFields?: KVPair[];
   };
   const timeoutMs = rawTimeout ? parseInt(String(rawTimeout), 10) : 30000;
 
   if (!url) throw new Error("HTTP Request node: url is required");
 
   const resolvedUrl = interpolate(url, $input);
-  const resolvedBody = body ? JSON.parse(interpolate(body, $input)) : undefined;
+
+  let resolvedBody: unknown;
+  if (contentType === "form") {
+    const fd = new FormData();
+    for (const f of formFields) {
+      if (f.key) fd.append(interpolate(f.key, $input), interpolate(f.value, $input));
+    }
+    resolvedBody = fd;
+  } else if (contentType === "urlencoded") {
+    const params = new URLSearchParams();
+    for (const f of formFields) {
+      if (f.key) params.append(interpolate(f.key, $input), interpolate(f.value, $input));
+    }
+    resolvedBody = params.toString();
+  } else if (contentType === "raw") {
+    resolvedBody = body ? interpolate(body, $input) : undefined;
+  } else {
+    // json (default)
+    resolvedBody = body ? JSON.parse(interpolate(body, $input)) : undefined;
+  }
 
   const resolvedHeaders: Record<string, string> = { ...headers };
   // Apply custom headers with interpolation

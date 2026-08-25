@@ -75,6 +75,14 @@ export const AiNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-purple-900" icon="🤖" hasErrorOutput />
 );
 
+export const AggregateNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-lime-700" icon="⊕" />
+);
+
+export const TransformNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-teal-600" icon="⇢" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -108,5 +116,7 @@ export const nodeTypes = {
   memoryRead: MemoryReadNode,
   memoryWrite: MemoryWriteNode,
   ai: AiNode,
+  aggregate: AggregateNode,
+  transform: TransformNode,
   stickyNote: StickyNoteNode,
 };

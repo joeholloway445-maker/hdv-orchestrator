@@ -13,6 +13,8 @@ import { executeEmail } from "./email";
 import { executeSubWorkflow } from "./subWorkflow";
 import { executeRespond } from "./respond";
 import { executeAI } from "./ai";
+import { executeAggregate } from "./aggregate";
+import { executeTransform } from "./transform";
 
 interface NodeDef {
   id: string;
@@ -61,6 +63,10 @@ export async function executeNode(
       return executeMemoryWrite(node, $input, prisma!);
     case "ai":
       return executeAI(node, $input);
+    case "aggregate":
+      return executeAggregate(node, $input);
+    case "transform":
+      return executeTransform(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

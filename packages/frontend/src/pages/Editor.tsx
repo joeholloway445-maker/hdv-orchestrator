@@ -98,6 +98,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
   // AI & Annotation
   { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic" },
+  { type: "aggregate", label: "Aggregate", color: "bg-lime-700", description: "Collect items into array" },
+  { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
 ];
 
@@ -181,14 +183,29 @@ export function EditorPage() {
     }
   }, [nodes, edges]);
 
+  function duplicateSelected() {
+    if (!selectedNode) return;
+    const newNode: Node<NodeData> = {
+      ...selectedNode,
+      id: `${selectedNode.type}-${Date.now()}`,
+      position: { x: selectedNode.position.x + 40, y: selectedNode.position.y + 40 },
+      selected: false,
+      data: { ...selectedNode.data },
+    };
+    setNodes((nds) => nds.concat(newNode));
+  }
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") { e.preventDefault(); duplicateSelected(); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectedNode]);
 
   useEffect(() => {
     api.get(`/workflows/${id}`).then(({ data }) => {
