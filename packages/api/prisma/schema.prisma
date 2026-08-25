@@ -26,6 +26,7 @@ model Workflow {
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
   active            Boolean           @default(false)
+  description       String?
   tags              String[]          @default([])
   errorWorkflowId   String?
   timeoutMs         Int?

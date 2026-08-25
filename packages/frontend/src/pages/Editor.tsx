@@ -49,6 +49,7 @@ interface WorkflowRecord {
   id: string;
   name: string;
   active: boolean;
+  description?: string;
   tags?: string[];
   errorWorkflowId?: string;
   timeoutMs?: number | null;
@@ -356,7 +357,7 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null, maxConcurrency: workflow?.maxConcurrency ?? null });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null, maxConcurrency: workflow?.maxConcurrency ?? null, description: workflow?.description ?? null });
     setSaving(false);
   }
 
@@ -581,6 +582,14 @@ export function EditorPage() {
                     const tags = e.target.value.split(",").map((t) => t.trim()).filter(Boolean);
                     setWorkflow((w) => (w ? { ...w, tags } : w));
                   }}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+                  placeholder="What does this workflow do?"
+                  value={workflow?.description ?? ""}
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, description: e.target.value || undefined } : w))}
                 />
               </div>
             )}

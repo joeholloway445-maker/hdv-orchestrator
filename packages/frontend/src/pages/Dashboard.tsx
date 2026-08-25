@@ -7,6 +7,7 @@ interface Workflow {
   id: string;
   name: string;
   active: boolean;
+  description?: string;
   tags: string[];
   updatedAt: string;
   _count?: { executions: number };
@@ -160,8 +161,9 @@ export function DashboardPage() {
         {loading ? (
           <div className="text-gray-500">Loading...</div>
         ) : (() => {
+          const q = search.toLowerCase();
           const filtered = workflows.filter((w) =>
-            w.name.toLowerCase().includes(search.toLowerCase()) &&
+            (!q || w.name.toLowerCase().includes(q) || w.description?.toLowerCase().includes(q)) &&
             (!tagFilter.trim() || w.tags?.some((t) => t.toLowerCase().includes(tagFilter.toLowerCase())))
           );
           return filtered.length === 0 ? (
@@ -191,6 +193,9 @@ export function DashboardPage() {
                       <span key={tag} className="bg-blue-900/40 text-blue-300 text-xs rounded-full px-2 py-0.5">{tag}</span>
                     ))}
                   </div>
+                  {wf.description && (
+                    <p className="text-gray-400 text-xs mt-0.5 truncate">{wf.description}</p>
+                  )}
                   <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
                     {wf.active ? (
                       <span className="text-green-400">● Active</span>
