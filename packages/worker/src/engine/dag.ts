@@ -42,7 +42,12 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
 
   // Pre-load global variables and attach to trigger data as $vars
   const $vars = await getGlobalVars(prisma, workflow.userId).catch(() => ({}));
-  triggerData = { ...triggerData, $vars };
+  triggerData = {
+    ...triggerData,
+    $vars,
+    $execution: { id: executionId, workflowId: workflow.id },
+    $workflow: { id: workflow.id, name: workflow.name },
+  };
 
   const children: Record<string, string[]> = {};
   const parents: Record<string, string[]> = {};

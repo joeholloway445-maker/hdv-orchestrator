@@ -3,8 +3,11 @@
  *   {{ $json.field }}               — alias for $input.field
  *   {{ $input.field.sub }}          — dot-path access
  *   {{ $vars.KEY }}                 — global variables
+ *   {{ $env.VAR_NAME }}             — environment variable
  *   {{ $now }}                      — current ISO timestamp
  *   {{ $timestamp }}                — unix ms
+ *   {{ $execution.id }}             — current execution ID
+ *   {{ $workflow.name }}            — current workflow name
  *   {{ $node.NodeName.json.field }} — output of a named upstream node
  *   {{ someKey }}                   — top-level field shorthand
  */
@@ -28,6 +31,11 @@ function resolveToken(
   if (t.startsWith("$json.")) return dotGet($input, t.slice(6));
   if (t.startsWith("$input.")) return dotGet($input, t.slice(7));
   if (t.startsWith("$vars.")) return dotGet($input.$vars ?? {}, t.slice(6));
+  if (t.startsWith("$env.")) return process.env[t.slice(5)];
+  if (t === "$execution") return $input.$execution;
+  if (t.startsWith("$execution.")) return dotGet($input.$execution ?? {}, t.slice(11));
+  if (t === "$workflow") return $input.$workflow;
+  if (t.startsWith("$workflow.")) return dotGet($input.$workflow ?? {}, t.slice(10));
   // Also support nodeOutputs injected through $input.$nodeOutputs
   const resolvedNodeOutputs = nodeOutputs ?? ($input.$nodeOutputs as Record<string, unknown> | undefined);
   if (t.startsWith("$node.") && resolvedNodeOutputs) {

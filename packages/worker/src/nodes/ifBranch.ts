@@ -43,6 +43,10 @@ function evalCondition(cond: Condition, $input: Record<string, unknown>): boolea
     case "isNotEmpty":
       return actual !== "" && actual !== null && actual !== undefined &&
              !(Array.isArray(actual) && actual.length === 0);
+    case "matches":
+      try { return new RegExp(expected).test(String(actual ?? "")); } catch { return false; }
+    case "notMatches":
+      try { return !new RegExp(expected).test(String(actual ?? "")); } catch { return false; }
     default: return false;
   }
 }
