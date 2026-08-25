@@ -684,18 +684,75 @@ export function NodeConfigPanel({
             )}
 
             {/* Filter */}
-            {nodeType === "filter" && (
-              <>
-                <div>
-                  <label className={labelCls}>Array Field Name</label>
-                  <input className={inputCls} value={local.arrayKey || ""} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
-                </div>
-                <div>
-                  <label className={labelCls}>Keep condition (JS — use `item` or `$input`)</label>
-                  <textarea className={inputCls + " font-mono resize-none"} rows={3} value={local.condition || ""} onChange={(e) => patch({ condition: e.target.value })} placeholder="item.active === true" />
-                </div>
-              </>
-            )}
+            {nodeType === "filter" && (() => {
+              const filterConds: Array<{ field: string; operator: string; value: string }> = (local.conditions as Array<{ field: string; operator: string; value: string }>) || [];
+              const useStructured = filterConds.length > 0 || !local.condition;
+              const FILTER_OPS = [
+                { v: "equals", l: "= equals" }, { v: "notEquals", l: "≠ not equals" },
+                { v: "contains", l: "contains" }, { v: "notContains", l: "does not contain" },
+                { v: "startsWith", l: "starts with" }, { v: "endsWith", l: "ends with" },
+                { v: "gt", l: "> greater than" }, { v: "lt", l: "< less than" },
+                { v: "gte", l: "≥ ≥" }, { v: "lte", l: "≤ ≤" },
+                { v: "exists", l: "exists" }, { v: "notExists", l: "does not exist" },
+                { v: "isTrue", l: "is true" }, { v: "isFalse", l: "is false" },
+                { v: "isEmpty", l: "is empty" }, { v: "isNotEmpty", l: "is not empty" },
+              ];
+              const noValueOps = new Set(["exists", "notExists", "isTrue", "isFalse", "isEmpty", "isNotEmpty"]);
+              return (
+                <>
+                  <div>
+                    <label className={labelCls}>Array Field Name</label>
+                    <input className={inputCls} value={local.arrayKey || ""} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className={labelCls}>Keep items where</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => patch({ conditions: [...filterConds, { field: "", operator: "equals", value: "" }], condition: "" })} className="text-blue-400 text-xs hover:underline">+ Add</button>
+                        {filterConds.length === 0 && <button onClick={() => patch({ condition: local.condition || "item.active === true", conditions: [] })} className="text-gray-400 text-xs hover:underline ml-2">JS mode</button>}
+                      </div>
+                    </div>
+                    {useStructured ? (
+                      <>
+                        {filterConds.length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">Combine:</span>
+                            <select className="bg-gray-700 text-white text-xs rounded px-2 py-1" value={local.combineMode || "AND"} onChange={(e) => patch({ combineMode: e.target.value })}>
+                              <option value="AND">AND (all must pass)</option>
+                              <option value="OR">OR (any must pass)</option>
+                            </select>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {filterConds.map((c, i) => (
+                            <div key={i} className="bg-gray-750 rounded p-2 space-y-1 border border-gray-600">
+                              <div className="flex gap-1 items-center">
+                                <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs" placeholder="item field (e.g. active)" value={c.field} onChange={(e) => { const n = [...filterConds]; n[i] = { ...n[i], field: e.target.value }; patch({ conditions: n }); }} />
+                                <button onClick={() => patch({ conditions: filterConds.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 text-xs px-1">×</button>
+                              </div>
+                              <select className="w-full bg-gray-700 text-white rounded px-2 py-1 text-xs" value={c.operator} onChange={(e) => { const n = [...filterConds]; n[i] = { ...n[i], operator: e.target.value }; patch({ conditions: n }); }}>
+                                {FILTER_OPS.map((op) => <option key={op.v} value={op.v}>{op.l}</option>)}
+                              </select>
+                              {!noValueOps.has(c.operator) && (
+                                <input className="w-full bg-gray-700 text-white rounded px-2 py-1 text-xs" placeholder="value or {{$input.field}}" value={c.value} onChange={(e) => { const n = [...filterConds]; n[i] = { ...n[i], value: e.target.value }; patch({ conditions: n }); }} />
+                              )}
+                            </div>
+                          ))}
+                          {filterConds.length === 0 && (
+                            <p className="text-xs text-gray-500">Click "+ Add" to add a condition, or use JS mode.</p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <textarea className={inputCls + " font-mono resize-none"} rows={3} value={local.condition || ""} onChange={(e) => patch({ condition: e.target.value })} placeholder="item.active === true" />
+                        <button onClick={() => patch({ conditions: [{ field: "", operator: "equals", value: "" }], condition: "" })} className="text-blue-400 text-xs hover:underline mt-1">Switch to structured</button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Switch */}
             {nodeType === "switch" && (
