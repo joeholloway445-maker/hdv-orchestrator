@@ -47,6 +47,12 @@ export function DashboardPage() {
             Memory
           </button>
           <button
+            onClick={() => navigate("/variables")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Variables
+          </button>
+          <button
             onClick={() => navigate("/credentials")}
             className="text-sm text-gray-400 hover:text-white transition"
           >

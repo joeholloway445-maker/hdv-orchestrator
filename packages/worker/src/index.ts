@@ -37,9 +37,20 @@ const worker = new Worker(
 
       const finalOutputs = await executeWorkflow({ workflow, executionId, triggerData, publisher, prisma });
 
+      // Hoist _webhookResponse from any respond node output so the API can poll it
+      let webhookResponse: unknown = undefined;
+      for (const out of Object.values(finalOutputs)) {
+        const wr = (out as Record<string, unknown>)?._webhookResponse;
+        if (wr) { webhookResponse = wr; break; }
+      }
+
       await prisma.execution.update({
         where: { id: executionId },
-        data: { status: "SUCCESS", finishedAt: new Date(), data: finalOutputs as object },
+        data: {
+          status: "SUCCESS",
+          finishedAt: new Date(),
+          data: { ...finalOutputs as object, ...(webhookResponse ? { webhookResponse } : {}) },
+        },
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);

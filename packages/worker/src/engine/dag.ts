@@ -2,6 +2,7 @@ import type { Workflow } from "@prisma/client";
 import { PrismaClient } from "@prisma/client";
 import type IORedis from "ioredis";
 import { executeNode } from "../nodes";
+import { getGlobalVars } from "../lib/globalVars";
 
 interface RawNode {
   id: string;
@@ -31,6 +32,10 @@ async function pub(publisher: IORedis, executionId: string, event: Record<string
 export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }: Options) {
   const nodes = workflow.nodes as RawNode[];
   const edges = workflow.edges as RawEdge[];
+
+  // Pre-load global variables and attach to trigger data as $vars
+  const $vars = await getGlobalVars(prisma, workflow.userId).catch(() => ({}));
+  triggerData = { ...triggerData, $vars };
 
   const children: Record<string, string[]> = {};
   const parents: Record<string, string[]> = {};
