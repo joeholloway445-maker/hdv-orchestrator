@@ -1437,6 +1437,27 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* Deduplicate Node */}
+            {nodeType === "deduplicate" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Dedupe Field (dot-path, blank = whole item)</label>
+                  <input className={inputCls} value={(local.dedupeField as string) || ""} onChange={(e) => patch({ dedupeField: e.target.value })} placeholder="id" />
+                </div>
+                <div>
+                  <label className={labelCls}>Strategy</label>
+                  <select className={inputCls} value={(local.strategy as string) || "removeSubsequent"} onChange={(e) => patch({ strategy: e.target.value })}>
+                    <option value="removeSubsequent">Remove Subsequent (keep first)</option>
+                    <option value="keepLast">Keep Last</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">

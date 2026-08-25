@@ -28,6 +28,7 @@ import { executeDatabase } from "./database";
 import { executeSlack } from "./slack";
 import { executeXml } from "./xml";
 import { executeRss } from "./rss";
+import { executeDeduplicate } from "./deduplicate";
 
 interface NodeDef {
   id: string;
@@ -107,6 +108,8 @@ export async function executeNode(
       return executeXml(node, $input);
     case "rss":
       return executeRss(node, $input);
+    case "deduplicate":
+      return executeDeduplicate(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

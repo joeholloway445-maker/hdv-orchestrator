@@ -119,6 +119,7 @@ export const NODE_TYPE_CONFIG = [
   { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
   { type: "xml", label: "XML", color: "bg-lime-700", description: "Parse or stringify XML", category: "Data" },
   { type: "rss", label: "RSS / Atom", color: "bg-orange-600", description: "Fetch and parse RSS/Atom feed", category: "Data" },
+  { type: "deduplicate", label: "Deduplicate", color: "bg-teal-700", description: "Remove duplicate items from an array", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
