@@ -15,6 +15,8 @@ import { executeRespond } from "./respond";
 import { executeAI } from "./ai";
 import { executeAggregate } from "./aggregate";
 import { executeTransform } from "./transform";
+import { executeDatetime } from "./datetime";
+import { executeCrypto } from "./crypto";
 
 interface NodeDef {
   id: string;
@@ -67,6 +69,10 @@ export async function executeNode(
       return executeAggregate(node, $input);
     case "transform":
       return executeTransform(node, $input);
+    case "datetime":
+      return executeDatetime(node, $input);
+    case "crypto":
+      return executeCrypto(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

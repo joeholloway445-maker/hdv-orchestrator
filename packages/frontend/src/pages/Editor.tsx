@@ -100,6 +100,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic" },
   { type: "aggregate", label: "Aggregate", color: "bg-lime-700", description: "Collect items into array" },
   { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output" },
+  { type: "datetime", label: "Date & Time", color: "bg-sky-600", description: "Format, add, diff dates" },
+  { type: "crypto", label: "Crypto / Hash", color: "bg-gray-700", description: "Hash, HMAC, Base64, UUID" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
 ];
 

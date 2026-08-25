@@ -51,6 +51,19 @@ interface NodeData {
   temperature?: string;
   baseUrl?: string;
   text?: string;
+  // DateTime node
+  operation?: string;
+  inputField?: string;
+  compareField?: string;
+  outputField?: string;
+  format?: string;
+  unit?: string;
+  amount?: string;
+  // Crypto node
+  secretKey?: string;
+  encoding?: string;
+  // Pinned data
+  _pinnedData?: string;
   [key: string]: unknown;
 }
 
@@ -600,6 +613,138 @@ export function NodeConfigPanel({
               <div>
                 <label className={labelCls}>Note Text</label>
                 <textarea className={inputCls + " resize-none"} rows={6} value={(local.text as string) || ""} onChange={(e) => patch({ text: e.target.value })} placeholder="Add a note to describe this part of the workflow..." />
+              </div>
+            )}
+
+            {/* Date & Time */}
+            {nodeType === "datetime" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={local.operation || "now"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="now">Now</option>
+                    <option value="format">Format</option>
+                    <option value="add">Add</option>
+                    <option value="subtract">Subtract</option>
+                    <option value="diff">Difference</option>
+                    <option value="startOf">Start Of</option>
+                    <option value="endOf">End Of</option>
+                    <option value="isAfter">Is After</option>
+                    <option value="isBefore">Is Before</option>
+                  </select>
+                </div>
+                {local.operation !== "now" && (
+                  <div>
+                    <label className={labelCls}>Input Date</label>
+                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.date}} or 2024-01-01" />
+                  </div>
+                )}
+                {(local.operation === "diff" || local.operation === "isAfter" || local.operation === "isBefore") && (
+                  <div>
+                    <label className={labelCls}>Compare Date</label>
+                    <ExpressionInput value={local.compareField || ""} onChange={(v) => patch({ compareField: v })} placeholder="{{body.endDate}}" />
+                  </div>
+                )}
+                {(local.operation === "add" || local.operation === "subtract" || local.operation === "diff" || local.operation === "startOf" || local.operation === "endOf") && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className={labelCls}>Amount</label>
+                      <input className={inputCls} type="number" value={local.amount || "1"} onChange={(e) => patch({ amount: e.target.value })} />
+                    </div>
+                    <div className="flex-1">
+                      <label className={labelCls}>Unit</label>
+                      <select className={inputCls} value={local.unit || "days"} onChange={(e) => patch({ unit: e.target.value })}>
+                        <option value="seconds">Seconds</option>
+                        <option value="minutes">Minutes</option>
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                        <option value="weeks">Weeks</option>
+                        <option value="month">Month</option>
+                        <option value="year">Year</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className={labelCls}>Output Format</label>
+                  <select className={inputCls} value={local.format || "iso"} onChange={(e) => patch({ format: e.target.value })}>
+                    <option value="iso">ISO 8601</option>
+                    <option value="date">Date only (YYYY-MM-DD)</option>
+                    <option value="time">Time only (HH:MM:SS)</option>
+                    <option value="unix">Unix timestamp (s)</option>
+                    <option value="unix_ms">Unix timestamp (ms)</option>
+                    <option value="local">Local string</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={local.outputField || "datetime"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="datetime" />
+                </div>
+              </div>
+            )}
+
+            {/* Crypto / Hash */}
+            {nodeType === "crypto" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={local.operation || "sha256"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="md5">MD5</option>
+                    <option value="sha1">SHA-1</option>
+                    <option value="sha256">SHA-256</option>
+                    <option value="sha512">SHA-512</option>
+                    <option value="hmac_sha256">HMAC-SHA256</option>
+                    <option value="hmac_sha512">HMAC-SHA512</option>
+                    <option value="base64encode">Base64 Encode</option>
+                    <option value="base64decode">Base64 Decode</option>
+                    <option value="urlencode">URL Encode</option>
+                    <option value="urldecode">URL Decode</option>
+                    <option value="uuid">Generate UUID</option>
+                  </select>
+                </div>
+                {local.operation !== "uuid" && (
+                  <div>
+                    <label className={labelCls}>Input Value</label>
+                    <ExpressionInput value={local.inputField || ""} onChange={(v) => patch({ inputField: v })} placeholder="{{body.text}}" />
+                  </div>
+                )}
+                {(local.operation === "hmac_sha256" || local.operation === "hmac_sha512") && (
+                  <div>
+                    <label className={labelCls}>Secret Key</label>
+                    <input className={inputCls} type="password" value={local.secretKey || ""} onChange={(e) => patch({ secretKey: e.target.value })} placeholder="HMAC secret" />
+                  </div>
+                )}
+                {(local.operation?.startsWith("sha") || local.operation?.startsWith("hmac") || local.operation === "md5") && (
+                  <div>
+                    <label className={labelCls}>Encoding</label>
+                    <select className={inputCls} value={local.encoding || "hex"} onChange={(e) => patch({ encoding: e.target.value })}>
+                      <option value="hex">Hex</option>
+                      <option value="base64">Base64</option>
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={local.outputField || "result"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="result" />
+                </div>
+              </div>
+            )}
+
+            {/* Pinned Data — available on all non-trigger nodes */}
+            {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
+              <div className="border-t border-gray-700 pt-3 space-y-1">
+                <label className={labelCls + " flex items-center gap-1"}>
+                  📌 Pinned Data
+                  <span className="text-gray-400 font-normal">(overrides execution)</span>
+                </label>
+                <textarea
+                  className={inputCls + " resize-none font-mono text-xs"}
+                  rows={4}
+                  value={(local._pinnedData as string) || ""}
+                  onChange={(e) => patch({ _pinnedData: e.target.value || undefined })}
+                  placeholder={'{\n  "key": "value"\n}'}
+                />
+                <p className="text-xs text-gray-500">When set, this node returns this JSON instead of executing — useful for mocking during test runs.</p>
               </div>
             )}
 

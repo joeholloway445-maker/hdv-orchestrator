@@ -13,6 +13,7 @@ interface Workflow {
 export function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
@@ -95,7 +96,7 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">My Workflows</h2>
           <div className="flex gap-2">
             <button
@@ -113,18 +114,32 @@ export function DashboardPage() {
           </div>
         </div>
 
+        <input
+          type="text"
+          className="w-full mb-6 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+          placeholder="Search workflows..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
         {loading ? (
           <div className="text-gray-500">Loading...</div>
-        ) : workflows.length === 0 ? (
+        ) : workflows.filter((w) => w.name.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
           <div className="text-center py-24 text-gray-500">
-            <p className="text-lg mb-3">No workflows yet</p>
-            <button onClick={createWorkflow} className="text-blue-400 hover:underline">
-              Create your first workflow →
-            </button>
+            {search ? (
+              <p className="text-lg">No workflows match &ldquo;{search}&rdquo;</p>
+            ) : (
+              <>
+                <p className="text-lg mb-3">No workflows yet</p>
+                <button onClick={createWorkflow} className="text-blue-400 hover:underline">
+                  Create your first workflow →
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid gap-3">
-            {workflows.map((wf) => (
+            {workflows.filter((w) => w.name.toLowerCase().includes(search.toLowerCase())).map((wf) => (
               <div
                 key={wf.id}
                 className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-gray-600 transition"

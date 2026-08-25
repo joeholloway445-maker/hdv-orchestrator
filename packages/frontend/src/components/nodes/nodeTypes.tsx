@@ -83,6 +83,14 @@ export const TransformNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-teal-600" icon="⇢" />
 );
 
+export const DatetimeNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-sky-600" icon="📅" />
+);
+
+export const CryptoNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-gray-700" icon="🔐" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -118,5 +126,7 @@ export const nodeTypes = {
   ai: AiNode,
   aggregate: AggregateNode,
   transform: TransformNode,
+  datetime: DatetimeNode,
+  crypto: CryptoNode,
   stickyNote: StickyNoteNode,
 };

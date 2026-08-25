@@ -99,7 +99,11 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
     });
 
     try {
-      const output = await executeNode(node, $input, prisma);
+      // Pinned data short-circuits actual execution for testing
+      const pinnedRaw = node.data._pinnedData;
+      const output = pinnedRaw
+        ? (typeof pinnedRaw === "string" ? JSON.parse(pinnedRaw) : pinnedRaw)
+        : await executeNode(node, $input, prisma);
       outputs[nodeId] = output;
       nodeStatus[nodeId] = "done";
 
