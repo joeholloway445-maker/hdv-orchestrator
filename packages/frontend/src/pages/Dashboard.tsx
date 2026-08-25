@@ -44,7 +44,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     api.get("/workflows").then(({ data }) => {
-      setWorkflows(data as Workflow[]);
+      const list = Array.isArray(data) ? data : ((data as { items?: Workflow[] }).items ?? []);
+      setWorkflows(list as Workflow[]);
       setLoading(false);
     });
   }, []);

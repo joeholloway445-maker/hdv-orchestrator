@@ -113,6 +113,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   res.json(updated);
 });
 
+// Cancel a running/pending execution — marks it FAILED immediately
+router.post("/:id/cancel", async (req: AuthRequest, res) => {
+  const execution = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: { select: { userId: true } } },
+  });
+  if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+  if (execution.status !== "RUNNING" && execution.status !== "PENDING") {
+    return res.status(409).json({ error: `Execution is already ${execution.status}` });
+  }
+  const updated = await prisma.execution.update({
+    where: { id: req.params.id },
+    data: { status: "FAILED", finishedAt: new Date(), data: { error: "Cancelled by user" } },
+  });
+  res.json(updated);
+});
+
 // Retry a failed execution — replays with original trigger data
 router.post("/:id/retry", async (req: AuthRequest, res) => {
   const original = await prisma.execution.findUnique({

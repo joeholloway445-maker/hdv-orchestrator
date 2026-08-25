@@ -237,7 +237,7 @@ export function EditorPage() {
       setEdges((wf.edges as Edge[]) || []);
     });
     api.get(`/executions/workflow/${id}`).then(async ({ data }) => {
-      const execs = data as ExecutionRecord[];
+      const execs: ExecutionRecord[] = Array.isArray(data) ? data : ((data as { items?: ExecutionRecord[] }).items ?? []);
       setExecutions(execs);
       // Load node logs from most recent finished execution for output overlays
       const lastFinished = execs.find((e) => e.status === "SUCCESS" || e.status === "FAILED");
@@ -285,7 +285,10 @@ export function EditorPage() {
   }, [executionId]);
 
   function refreshExecutions() {
-    api.get(`/executions/workflow/${id}`).then(({ data }) => setExecutions(data as ExecutionRecord[]));
+    api.get(`/executions/workflow/${id}`).then(({ data }) => {
+      const execs: ExecutionRecord[] = Array.isArray(data) ? data : ((data as { items?: ExecutionRecord[] }).items ?? []);
+      setExecutions(execs);
+    });
   }
 
   async function retryExecution(execId: string, e: React.MouseEvent) {
