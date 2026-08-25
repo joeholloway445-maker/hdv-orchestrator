@@ -50,6 +50,29 @@ router.get("/:id", async (req: AuthRequest, res) => {
   res.json(execution);
 });
 
+// Bulk delete — DELETE /executions?status=FAILED or ?olderThanDays=7
+router.delete("/", async (req: AuthRequest, res) => {
+  const workflows = await prisma.workflow.findMany({
+    where: { userId: req.userId! },
+    select: { id: true },
+  });
+  const workflowIds = workflows.map((w) => w.id);
+
+  const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
+
+  if (req.query.status) {
+    where.status = req.query.status as string;
+  }
+  if (req.query.olderThanDays) {
+    const days = Number(req.query.olderThanDays);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    where.startedAt = { lt: cutoff };
+  }
+
+  const { count } = await prisma.execution.deleteMany({ where: where as Parameters<typeof prisma.execution.deleteMany>[0]["where"] });
+  res.json({ deleted: count });
+});
+
 // Delete a specific execution
 router.delete("/:id", async (req: AuthRequest, res) => {
   const execution = await prisma.execution.findUnique({

@@ -189,6 +189,18 @@ export function ExecutionsPage() {
     }
   }
 
+  async function bulkDelete(status: string) {
+    if (!confirm(`Delete all ${status || "selected"} executions?`)) return;
+    await api.delete(`/executions${status ? `?status=${status}` : ""}`);
+    await load();
+  }
+
+  async function purgeOld(days: number) {
+    if (!confirm(`Delete all executions older than ${days} days?`)) return;
+    await api.delete(`/executions?olderThanDays=${days}`);
+    await load();
+  }
+
   const filtered = filter
     ? executions.filter(
         (e) =>
@@ -237,6 +249,18 @@ export function ExecutionsPage() {
           >
             {autoRefresh ? "⟳ Live" : "⟳ Off"}
           </button>
+          <div className="relative group">
+            <button className="bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-lg px-3 py-1.5 text-sm transition">
+              Purge ▾
+            </button>
+            <div className="hidden group-hover:flex absolute right-0 top-9 z-50 flex-col bg-gray-800 border border-gray-700 rounded-xl py-1 shadow-2xl min-w-[180px]">
+              <button onClick={() => bulkDelete("FAILED")} className="px-4 py-2 text-sm text-red-400 hover:bg-gray-700 text-left">Delete all FAILED</button>
+              <button onClick={() => bulkDelete("SUCCESS")} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Delete all SUCCESS</button>
+              <hr className="border-gray-700 my-1" />
+              <button onClick={() => purgeOld(7)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 7 days</button>
+              <button onClick={() => purgeOld(30)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 30 days</button>
+            </div>
+          </div>
         </div>
       </header>
 
