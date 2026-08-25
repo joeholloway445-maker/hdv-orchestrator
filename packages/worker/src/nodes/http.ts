@@ -2,19 +2,15 @@ import axios from "axios";
 import FormData from "form-data";
 import { PrismaClient } from "@prisma/client";
 import { decrypt } from "../lib/crypto";
+import { interpolate as _interpolate } from "../lib/expr";
 
 interface NodeDef {
   data: Record<string, unknown>;
 }
 
 function interpolate(template: string, data: unknown): string {
-  return template.replace(/\{\{(.+?)\}\}/g, (_, key: string) => {
-    const val = key
-      .trim()
-      .split(".")
-      .reduce((obj: unknown, k: string) => (obj && typeof obj === "object" ? (obj as Record<string, unknown>)[k] : undefined), data);
-    return val !== undefined ? String(val) : "";
-  });
+  const result = _interpolate(template, data as Record<string, unknown>);
+  return result !== undefined && result !== null ? String(result) : "";
 }
 
 interface KVPair { key: string; value: string }
