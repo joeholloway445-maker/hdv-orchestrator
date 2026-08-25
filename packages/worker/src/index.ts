@@ -111,13 +111,9 @@ const worker = new Worker(
   },
   {
     connection,
-    // Lock expires after 30s; if the worker hasn't renewed it the job is
-    // considered stalled. Lock renews every 15s (lockDuration / 2).
+    concurrency: Number(process.env.WORKER_CONCURRENCY) || 4,
     lockDuration: 30_000,
-    // Check for stalled jobs every 15s so recovery is prompt.
     stalledInterval: 15_000,
-    // Allow one stall retry (handles transient Redis connectivity blips).
-    // If it stalls again, BullMQ marks it failed and QueueEvents fires.
     maxStalledCount: 1,
   }
 );

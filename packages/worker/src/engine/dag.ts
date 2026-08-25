@@ -126,6 +126,17 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
           ? { items: filtered }
           : triggerData;
 
+    // Build name→output map for $node.NodeName cross-references
+    const $nodeOutputs: Record<string, unknown> = {};
+    for (const n of nodes) {
+      if (outputs[n.id] !== undefined) {
+        const label = String(n.data?.label || n.data?.name || n.id);
+        $nodeOutputs[label] = outputs[n.id];
+        $nodeOutputs[n.id] = outputs[n.id];
+      }
+    }
+    $input.$nodeOutputs = $nodeOutputs;
+
     nodeStatus[nodeId] = "running";
     await pub(publisher, executionId, { type: "node-started", nodeId, nodeType });
 
