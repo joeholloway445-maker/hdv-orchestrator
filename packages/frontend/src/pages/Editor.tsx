@@ -19,6 +19,7 @@ import { useAuthStore } from "../store/auth";
 import { NodeSidebar } from "../components/NodeSidebar";
 import { NodeConfigPanel } from "../components/NodeConfigPanel";
 import { ExecutionPanel } from "../components/ExecutionPanel";
+import { nodeTypes } from "../components/nodes/nodeTypes";
 
 interface NodeData {
   label?: string;
@@ -28,6 +29,8 @@ interface NodeData {
   url?: string;
   body?: string;
   code?: string;
+  condition?: string;
+  mappings?: Array<{ key: string; value: string }>;
   [key: string]: unknown;
 }
 
@@ -39,12 +42,36 @@ interface WorkflowRecord {
   edges: Edge[];
 }
 
+interface ExecutionRecord {
+  id: string;
+  status: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+interface NodeLog {
+  id: string;
+  nodeId: string;
+  status: string;
+  input?: unknown;
+  output?: unknown;
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
 type NodeStatus = "running" | "success" | "error";
 
-const NODE_TYPE_CONFIG = [
-  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-600", description: "Listens for HTTP POSTs" },
-  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-600", description: "Calls an external URL" },
-  { type: "code", label: "Code", color: "bg-orange-600", description: "Runs sandboxed JS" },
+export const NODE_TYPE_CONFIG = [
+  { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger" },
+  { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually" },
+  { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL" },
+  { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS" },
+  { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing" },
+  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
+  { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches" },
+  { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
+  { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
 ];
 
 function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
@@ -70,12 +97,14 @@ export function EditorPage() {
   const [executing, setExecuting] = useState(false);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
+  const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  // Load workflow
   useEffect(() => {
     api.get(`/workflows/${id}`).then(({ data }) => {
       const wf = data as WorkflowRecord;
@@ -83,9 +112,11 @@ export function EditorPage() {
       setNodes((wf.nodes as Node<NodeData>[]) || []);
       setEdges((wf.edges as Edge[]) || []);
     });
+    api.get(`/executions/workflow/${id}`).then(({ data }) => {
+      setExecutions(data as ExecutionRecord[]);
+    });
   }, [id]);
 
-  // WebSocket setup
   useEffect(() => {
     const socket = io("http://localhost:4000", { auth: { token } });
     socketRef.current = socket;
@@ -99,18 +130,28 @@ export function EditorPage() {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "error" }));
       } else if (event.type === "execution-failed") {
         setExecuting(false);
+        refreshExecutions();
       }
     });
 
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, [token]);
 
-  // Join execution room when executionId is set
   useEffect(() => {
-    if (executionId) socketRef.current?.emit("join-execution", executionId);
+    if (executionId) {
+      socketRef.current?.emit("join-execution", executionId);
+    }
   }, [executionId]);
+
+  function refreshExecutions() {
+    api.get(`/executions/workflow/${id}`).then(({ data }) => setExecutions(data as ExecutionRecord[]));
+  }
+
+  async function loadExecutionLogs(execId: string) {
+    const { data } = await api.get(`/executions/${execId}`);
+    const exec = data as { nodeLogs: NodeLog[] };
+    setNodeLogs(exec.nodeLogs || []);
+  }
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -132,7 +173,7 @@ export function EditorPage() {
       const config = NODE_TYPE_CONFIG.find((n) => n.type === type);
       const newNode: Node<NodeData> = {
         id: `${type}-${Date.now()}`,
-        type: "default",
+        type,
         position,
         data: { label: config?.label || type, nodeType: type },
       };
@@ -149,17 +190,62 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active });
     setSaving(false);
   }
 
   async function execute() {
     await save();
     setNodeStatuses({});
+    setNodeLogs([]);
     setExecuting(true);
     setExecutionId(null);
     const { data } = await api.post(`/workflows/${id}/execute`);
-    setExecutionId((data as { id: string }).id);
+    const execId = (data as { id: string }).id;
+    setExecutionId(execId);
+    setExecutions((prev) => [
+      { id: execId, status: "RUNNING", startedAt: new Date().toISOString() },
+      ...prev,
+    ]);
+    // Poll for completion to refresh history
+    const poll = setInterval(async () => {
+      const { data: ex } = await api.get(`/executions/${execId}`);
+      const rec = ex as ExecutionRecord & { nodeLogs: NodeLog[] };
+      if (rec.status !== "RUNNING" && rec.status !== "PENDING") {
+        clearInterval(poll);
+        setExecuting(false);
+        setNodeLogs(rec.nodeLogs || []);
+        refreshExecutions();
+      }
+    }, 1000);
+  }
+
+  function exportWorkflow() {
+    const blob = new Blob([JSON.stringify({ nodes, edges, name: workflow?.name }, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${workflow?.name || "workflow"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importWorkflow() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string };
+      setNodes(parsed.nodes || []);
+      setEdges(parsed.edges || []);
+      if (parsed.name && workflow) setWorkflow({ ...workflow, name: parsed.name });
+    };
+    input.click();
   }
 
   function updateNodeData(nodeId: string, newData: Partial<NodeData>) {
@@ -171,7 +257,10 @@ export function EditorPage() {
     );
   }
 
-  // Inject status ring into nodes via style
+  const selectedNodeLog = selectedNode
+    ? nodeLogs.find((l) => l.nodeId === selectedNode.id) ?? null
+    : null;
+
   const displayNodes = nodes.map((n) => ({
     ...n,
     style: { ...n.style, ...nodeStyle(nodeStatuses[n.id]) },
@@ -179,7 +268,6 @@ export function EditorPage() {
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center gap-3 shrink-0">
         <button onClick={() => navigate("/")} className="text-gray-400 hover:text-white text-sm transition">
           ← Back
@@ -187,14 +275,32 @@ export function EditorPage() {
         <input
           className="bg-transparent text-white font-semibold text-lg focus:outline-none border-b border-transparent hover:border-gray-600 focus:border-blue-500 px-1 min-w-0 flex-1"
           value={workflow?.name || ""}
-          onChange={(e) => setWorkflow((w) => w ? { ...w, name: e.target.value } : w)}
+          onChange={(e) => setWorkflow((w) => (w ? { ...w, name: e.target.value } : w))}
         />
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <button
+            onClick={importWorkflow}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition"
+          >
+            Import
+          </button>
+          <button
+            onClick={exportWorkflow}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition"
+          >
+            Export
+          </button>
+          <button
+            onClick={() => setShowHistory((h) => !h)}
+            className={`px-3 py-1.5 rounded-lg text-xs transition ${showHistory ? "bg-gray-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+          >
+            History
+          </button>
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input
               type="checkbox"
               checked={workflow?.active || false}
-              onChange={(e) => setWorkflow((w) => w ? { ...w, active: e.target.checked } : w)}
+              onChange={(e) => setWorkflow((w) => (w ? { ...w, active: e.target.checked } : w))}
               className="accent-green-500"
             />
             Active
@@ -223,6 +329,7 @@ export function EditorPage() {
           <ReactFlow
             nodes={displayNodes}
             edges={edges}
+            nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -240,11 +347,52 @@ export function EditorPage() {
           </ReactFlow>
         </div>
 
+        {showHistory && (
+          <aside className="w-64 bg-gray-800 border-l border-gray-700 flex flex-col shrink-0">
+            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+              <h3 className="text-white text-sm font-semibold">Execution History</h3>
+              <button onClick={() => setShowHistory(false)} className="text-gray-500 hover:text-white text-lg">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {executions.length === 0 ? (
+                <p className="text-gray-600 text-xs p-4">No executions yet</p>
+              ) : (
+                executions.map((ex) => (
+                  <button
+                    key={ex.id}
+                    onClick={() => loadExecutionLogs(ex.id)}
+                    className="w-full text-left px-4 py-3 border-b border-gray-700 hover:bg-gray-700/50 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          ex.status === "SUCCESS"
+                            ? "bg-green-400"
+                            : ex.status === "FAILED"
+                              ? "bg-red-400"
+                              : ex.status === "RUNNING"
+                                ? "bg-yellow-400 animate-pulse"
+                                : "bg-gray-500"
+                        }`}
+                      />
+                      <span className="text-xs text-gray-300 capitalize">{ex.status.toLowerCase()}</span>
+                    </div>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {new Date(ex.startedAt).toLocaleString()}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          </aside>
+        )}
+
         {selectedNode && (
           <NodeConfigPanel
             node={selectedNode}
             onUpdate={(data) => updateNodeData(selectedNode.id, data)}
             onClose={() => setSelectedNode(null)}
+            nodeLog={selectedNodeLog}
           />
         )}
       </div>

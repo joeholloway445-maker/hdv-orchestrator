@@ -8,12 +8,14 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
+  id           String       @id @default(cuid())
+  email        String       @unique
   passwordHash String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   workflows    Workflow[]
+  memories     UserMemory[]
+  credentials  Credential[]
 }
 
 model Workflow {
@@ -30,13 +32,52 @@ model Workflow {
 }
 
 model Execution {
-  id         String          @id @default(cuid())
+  id         String             @id @default(cuid())
   workflowId String
-  workflow   Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  status     ExecutionStatus @default(PENDING)
+  workflow   Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status     ExecutionStatus    @default(PENDING)
   data       Json?
-  startedAt  DateTime        @default(now())
+  startedAt  DateTime           @default(now())
   finishedAt DateTime?
+  nodeLogs   ExecutionNodeLog[]
+}
+
+model ExecutionNodeLog {
+  id          String        @id @default(cuid())
+  executionId String
+  execution   Execution     @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId      String
+  nodeType    String
+  status      NodeLogStatus
+  input       Json?
+  output      Json?
+  error       String?
+  startedAt   DateTime      @default(now())
+  finishedAt  DateTime?
+}
+
+model UserMemory {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key        String
+  value      Json
+  workflowId String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, key, workflowId])
+}
+
+model Credential {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum ExecutionStatus {
@@ -44,4 +85,10 @@ enum ExecutionStatus {
   RUNNING
   SUCCESS
   FAILED
+}
+
+enum NodeLogStatus {
+  RUNNING
+  SUCCESS
+  ERROR
 }

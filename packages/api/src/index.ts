@@ -7,6 +7,8 @@ import { authRouter } from "./routes/auth";
 import { workflowsRouter } from "./routes/workflows";
 import { executionsRouter } from "./routes/executions";
 import { webhooksRouter } from "./routes/webhooks";
+import { memoryRouter } from "./routes/memory";
+import { credentialsRouter } from "./routes/credentials";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 
@@ -25,6 +27,8 @@ app.use("/auth", authRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/workflows", verifyToken, workflowsRouter);
 app.use("/executions", verifyToken, executionsRouter);
+app.use("/memory", verifyToken, memoryRouter);
+app.use("/credentials", verifyToken, credentialsRouter);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
