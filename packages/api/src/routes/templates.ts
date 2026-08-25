@@ -239,6 +239,76 @@ const TEMPLATES = [
       { id: "e3", source: "n3", target: "n4" },
     ],
   },
+  {
+    id: "rss-dedup-email",
+    name: "RSS Feed → Deduplicate → Email Digest",
+    description: "Fetches an RSS feed on a schedule, removes duplicates by guid, and emails a digest of new items.",
+    tags: ["rss", "deduplicate", "email", "schedule"],
+    nodes: [
+      { id: "n1", type: "scheduleTrigger", position: { x: 60, y: 200 }, data: { label: "Every 6 Hours", nodeType: "scheduleTrigger", cronExpression: "0 */6 * * *" } },
+      { id: "n2", type: "rss", position: { x: 280, y: 200 }, data: { label: "Fetch Feed", nodeType: "rss", url: "https://hnrss.org/frontpage", outputField: "items", limit: "50" } },
+      { id: "n3", type: "deduplicate", position: { x: 500, y: 200 }, data: { label: "Remove Seen", nodeType: "deduplicate", arrayKey: "items", dedupeField: "guid", strategy: "removeSubsequent" } },
+      { id: "n4", type: "email", position: { x: 720, y: 200 }, data: { label: "Email Digest", nodeType: "email", to: "you@example.com", subject: "RSS Digest: {{$input.items.length}} new items", body2: "{{$input.items}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "webhook-sort-limit-respond",
+    name: "Webhook → Sort & Limit → Respond",
+    description: "Receives an array, sorts by a field descending, caps at 10 items, and returns the result.",
+    tags: ["sort", "limit", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "sort", position: { x: 280, y: 200 }, data: { label: "Sort by Score", nodeType: "sort", arrayKey: "body.items", sortField: "score", direction: "desc" } },
+      { id: "n3", type: "limit", position: { x: 500, y: 200 }, data: { label: "Top 10", nodeType: "limit", arrayKey: "body.items", maxItems: "10", keepFrom: "start" } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "xml-parse-transform",
+    name: "HTTP → XML Parse → Transform → Respond",
+    description: "Fetches an XML API response, parses it to JSON, extracts fields, and responds with clean data.",
+    tags: ["xml", "http", "transform", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "httpRequest", position: { x: 280, y: 200 }, data: { label: "Fetch XML", nodeType: "httpRequest", method: "GET", url: "{{$input.body.url}}", contentType: "raw" } },
+      { id: "n3", type: "xml", position: { x: 500, y: 200 }, data: { label: "Parse XML", nodeType: "xml", operation: "parse", inputField: "body", outputField: "parsed" } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input.parsed}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "rename-validate-respond",
+    name: "Webhook → Rename Keys → Validate → Respond",
+    description: "Normalizes incoming field names, validates the schema, and responds or routes to error branch.",
+    tags: ["renameKeys", "validate", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "renameKeys", position: { x: 280, y: 200 }, data: { label: "Normalize Keys", nodeType: "renameKeys", mappings: [{ from: "body.user_id", to: "userId" }, { from: "body.first_name", to: "firstName" }, { from: "body.last_name", to: "lastName" }] } },
+      { id: "n3", type: "validate", position: { x: 500, y: 200 }, data: { label: "Validate", nodeType: "validate", mode: "throw", rules: [{ field: "userId", type: "string", required: true }, { field: "firstName", type: "string", required: true }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond 200", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+      { id: "n5", type: "respond", position: { x: 720, y: 380 }, data: { label: "Respond 422", nodeType: "respond", statusCode: "422", responseBody: "{{$input.error}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n3", target: "n5", sourceHandle: "error" },
+    ],
+  },
 ];
 
 // GET /templates — public list
@@ -261,8 +331,9 @@ router.post("/:id/use", async (req: AuthRequest, res) => {
   // Replace placeholder webhookIds with fresh UUIDs
   const { randomBytes } = await import("crypto");
   const nodes = tpl.nodes.map((n) => {
-    if ((n.data.nodeType === "webhookTrigger") && n.data.webhookId === "auto-replace") {
-      return { ...n, data: { ...n.data, webhookId: randomBytes(8).toString("hex") } };
+    const d = n.data as Record<string, unknown>;
+    if (d.nodeType === "webhookTrigger" && d.webhookId === "auto-replace") {
+      return { ...n, data: { ...d, webhookId: randomBytes(8).toString("hex") } };
     }
     return n;
   });
