@@ -107,6 +107,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
   { type: "validate", label: "Validate", color: "bg-red-700", description: "Validate field rules", category: "Utilities" },
+  { type: "noOp", label: "No Op", color: "bg-gray-500", description: "Pass-through — does nothing", category: "Utilities" },
+  { type: "stopError", label: "Stop & Error", color: "bg-red-900", description: "Halt execution with error", category: "Utilities" },
   { type: "jsonPath", label: "JSON Path", color: "bg-indigo-600", description: "Get, set, pick, omit, rename fields", category: "Data" },
   { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
   { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { AuthRequest } from "../middleware/auth";
 import { enqueueWorkflow } from "../queue/producer";
 
 const router = Router();
@@ -94,6 +95,30 @@ async function handleWebhook(req: import("express").Request, res: import("expres
 
   res.status(202).json({ executionId: execution.id, message: "Workflow triggered" });
 }
+
+// GET /webhooks/list — authenticated: list all webhook triggers for current user
+router.get("/list", async (req: AuthRequest, res) => {
+  const workflows = await prisma.workflow.findMany({ where: { userId: req.userId! } });
+  const webhooks: Array<{ workflowId: string; workflowName: string; webhookId: string; active: boolean; authType?: string }> = [];
+  for (const wf of workflows) {
+    const nodes = wf.nodes as Array<{ type?: string; data?: Record<string, unknown> }>;
+    for (const node of nodes) {
+      if (node.data?.nodeType === "webhookTrigger" || node.type === "webhookTrigger") {
+        const wId = node.data?.webhookId as string | undefined;
+        if (wId) {
+          webhooks.push({
+            workflowId: wf.id,
+            workflowName: wf.name,
+            webhookId: wId,
+            active: wf.active,
+            authType: (node.data?.authType as string | undefined) || "none",
+          });
+        }
+      }
+    }
+  }
+  res.json(webhooks);
+});
 
 // POST /webhooks/trigger/:webhookId
 router.post("/trigger/:webhookId", handleWebhook);

@@ -22,6 +22,7 @@ import { executeValidate } from "./validate";
 import { executeCSV } from "./csv";
 import { executeHtmlExtract } from "./html";
 import { executeJsonPath } from "./jsonPath";
+import { executeStopError } from "./stopError";
 
 interface NodeDef {
   id: string;
@@ -82,6 +83,10 @@ export async function executeNode(
       return executeSplitBatches(node, $input);
     case "validate":
       return executeValidate(node, $input);
+    case "noOp":
+      return $input;
+    case "stopError":
+      return executeStopError(node, $input);
     case "jsonPath":
       return executeJsonPath(node, $input);
     case "csv":

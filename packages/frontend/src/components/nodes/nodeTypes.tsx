@@ -99,6 +99,14 @@ export const ValidateNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-red-700" icon="✓" hasErrorOutput />
 );
 
+export const NoOpNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-gray-500" icon="○" />
+);
+
+export const StopErrorNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-red-900" icon="⛔" hasOutput={false} />
+);
+
 export const JsonPathNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-indigo-600" icon="🔎" />
 );
@@ -150,6 +158,8 @@ export const nodeTypes = {
   crypto: CryptoNode,
   splitBatches: SplitBatchesNode,
   validate: ValidateNode,
+  noOp: NoOpNode,
+  stopError: StopErrorNode,
   jsonPath: JsonPathNode,
   csv: CsvNode,
   htmlExtract: HtmlExtractNode,

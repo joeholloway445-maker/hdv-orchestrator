@@ -1030,6 +1030,19 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {nodeType === "stopError" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Error Message</label>
+                  <input className={inputCls} value={(local.message as string) || ""} onChange={(e) => patch({ message: e.target.value })} placeholder="Workflow stopped with error" />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!local.includeInput} onChange={(e) => patch({ includeInput: e.target.checked })} />
+                  <span className={labelCls + " mb-0"}>Include input in error message</span>
+                </label>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">
