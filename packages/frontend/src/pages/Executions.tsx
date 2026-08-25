@@ -176,16 +176,28 @@ export function ExecutionsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  async function load() {
+  function buildParams(extra?: Record<string, string>) {
+    const p = new URLSearchParams({ limit: "50" });
+    if (statusFilter) p.set("status", statusFilter);
+    if (workflowFilter) p.set("workflowId", workflowFilter);
+    if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    return p.toString();
+  }
+
+  async function load(sf = statusFilter, wf = workflowFilter) {
     setLoading(true);
     try {
-      const { data } = await api.get("/executions?limit=50");
+      const p = new URLSearchParams({ limit: "50" });
+      if (sf) p.set("status", sf);
+      if (wf) p.set("workflowId", wf);
+      const { data } = await api.get(`/executions?${p.toString()}`);
       const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
       const list = Array.isArray(payload) ? payload : (payload.items ?? []);
       const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
@@ -200,7 +212,7 @@ export function ExecutionsPage() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const { data } = await api.get(`/executions?limit=50&cursor=${nextCursor}`);
+      const { data } = await api.get(`/executions?${buildParams({ cursor: nextCursor })}`);
       const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
       const list = Array.isArray(payload) ? payload : (payload.items ?? []);
       const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
@@ -215,9 +227,9 @@ export function ExecutionsPage() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(load, 5000);
+    const interval = setInterval(() => load(), 5000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, statusFilter, workflowFilter]);
 
   async function openDetail(e: ExecutionRow) {
     const { data } = await api.get(`/executions/${e.id}`);
@@ -268,15 +280,6 @@ export function ExecutionsPage() {
     await load();
   }
 
-  const filtered = filter
-    ? executions.filter(
-        (e) =>
-          e.status === filter.toUpperCase() ||
-          e.workflow?.name?.toLowerCase().includes(filter.toLowerCase()) ||
-          e.workflowId.includes(filter),
-      )
-    : executions;
-
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} onNoteUpdate={(note) => setDetail((d) => d ? { ...d, data: { ...(d.data ?? {}), note } } : d)} />}
@@ -290,9 +293,9 @@ export function ExecutionsPage() {
           {["", "SUCCESS", "FAILED", "RUNNING", "PENDING"].map((s) => (
             <button
               key={s}
-              onClick={() => setFilter(s)}
+              onClick={() => { setStatusFilter(s); load(s, workflowFilter); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                filter === s
+                statusFilter === s
                   ? "bg-blue-600 text-white"
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
@@ -302,11 +305,11 @@ export function ExecutionsPage() {
           ))}
           <input
             className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
-            placeholder="Search by name…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Workflow ID…"
+            value={workflowFilter}
+            onChange={(e) => { setWorkflowFilter(e.target.value); load(statusFilter, e.target.value); }}
           />
-          <button onClick={load} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
+          <button onClick={() => load()} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
             Refresh
           </button>
           <button
@@ -334,7 +337,7 @@ export function ExecutionsPage() {
       <div className="px-8 py-6">
         {loading ? (
           <p className="text-gray-500">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : executions.length === 0 ? (
           <p className="text-gray-500">No executions found.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-800">
@@ -351,7 +354,7 @@ export function ExecutionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e, idx) => (
+                {executions.map((e, idx) => (
                   <tr
                     key={e.id}
                     className={`border-t border-gray-800 cursor-pointer hover:bg-gray-900/60 transition ${idx % 2 === 0 ? "bg-gray-950" : "bg-gray-900/30"}`}
