@@ -49,6 +49,7 @@ interface WorkflowRecord {
   id: string;
   name: string;
   active: boolean;
+  errorWorkflowId?: string;
   nodes: Node<NodeData>[];
   edges: Edge[];
 }
@@ -102,6 +103,7 @@ export const NODE_TYPE_CONFIG = [
   { type: "transform", label: "Transform", color: "bg-teal-600", description: "Reshape JSON output" },
   { type: "datetime", label: "Date & Time", color: "bg-sky-600", description: "Format, add, diff dates" },
   { type: "crypto", label: "Crypto / Hash", color: "bg-gray-700", description: "Hash, HMAC, Base64, UUID" },
+  { type: "splitBatches", label: "Split in Batches", color: "bg-orange-600", description: "Process array in chunks" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation" },
 ];
 
@@ -131,6 +133,8 @@ export function EditorPage() {
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [allWorkflows, setAllWorkflows] = useState<{ id: string; name: string }[]>([]);
   const [versions, setVersions] = useState<Array<{ id: string; name: string; createdAt: string }>>([]);
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
 
@@ -219,6 +223,9 @@ export function EditorPage() {
     api.get(`/executions/workflow/${id}`).then(({ data }) => {
       setExecutions(data as ExecutionRecord[]);
     });
+    api.get("/workflows").then(({ data }) => {
+      setAllWorkflows((data as WorkflowRecord[]).map((w) => ({ id: w.id, name: w.name })));
+    });
   }, [id]);
 
   useEffect(() => {
@@ -301,7 +308,7 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, errorWorkflowId: workflow?.errorWorkflowId || null });
     setSaving(false);
   }
 
@@ -448,6 +455,31 @@ export function EditorPage() {
             />
             Active
           </label>
+          <div className="relative">
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              className={`px-3 py-1.5 rounded-lg text-xs transition ${showSettings ? "bg-gray-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+            >
+              ⚙ Settings
+            </button>
+            {showSettings && (
+              <div className="absolute right-0 top-9 z-50 w-72 bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-2xl">
+                <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">Workflow Settings</p>
+                <label className="text-xs text-gray-400 block mb-1">Error Workflow</label>
+                <select
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.errorWorkflowId || ""}
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, errorWorkflowId: e.target.value || undefined } : w))}
+                >
+                  <option value="">None</option>
+                  {allWorkflows.filter((w) => w.id !== id).map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Triggered automatically when this workflow fails.</p>
+              </div>
+            )}
+          </div>
           <button
             onClick={save}
             disabled={saving}

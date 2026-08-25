@@ -63,6 +63,20 @@ const worker = new Worker(
         "workflow:telemetry",
         JSON.stringify({ type: "execution-failed", executionId, error: msg })
       );
+
+      // Trigger error workflow if configured
+      const wf = await prisma.workflow.findUnique({ where: { id: workflowId } }).catch(() => null);
+      const errorWfId = (wf as Record<string, unknown> | null)?.errorWorkflowId as string | undefined;
+      if (errorWfId) {
+        const errorWf = await prisma.workflow.findUnique({ where: { id: errorWfId } }).catch(() => null);
+        if (errorWf) {
+          const errExec = await prisma.execution.create({
+            data: { workflowId: errorWfId, status: "PENDING", data: { triggerData: { _error: msg, _workflowId: workflowId, _executionId: executionId } } },
+          });
+          const { enqueueWorkflow } = await import("./queue/producer");
+          await enqueueWorkflow({ workflowId: errorWfId, executionId: errExec.id, triggerData: { _error: msg, _workflowId: workflowId, _executionId: executionId } });
+        }
+      }
     }
   },
   { connection }

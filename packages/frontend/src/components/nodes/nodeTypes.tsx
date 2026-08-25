@@ -91,6 +91,10 @@ export const CryptoNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-gray-700" icon="🔐" />
 );
 
+export const SplitBatchesNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-orange-600" icon="⊞" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -128,5 +132,6 @@ export const nodeTypes = {
   transform: TransformNode,
   datetime: DatetimeNode,
   crypto: CryptoNode,
+  splitBatches: SplitBatchesNode,
   stickyNote: StickyNoteNode,
 };

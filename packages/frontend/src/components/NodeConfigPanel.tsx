@@ -776,6 +776,26 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* Split in Batches */}
+            {nodeType === "splitBatches" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                  <p className="text-xs text-gray-500 mt-0.5">Field on $input containing the array to split.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Batch Size</label>
+                  <input className={inputCls} type="number" min="1" max="1000" value={(local.batchSize as string) || "10"} onChange={(e) => patch({ batchSize: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputKey as string) || "batch"} onChange={(e) => patch({ outputKey: e.target.value })} placeholder="batch" />
+                  <p className="text-xs text-gray-500 mt-0.5">Output includes this field (first batch), _batches (all), _batchCount, _totalItems.</p>
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">

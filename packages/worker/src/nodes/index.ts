@@ -17,6 +17,7 @@ import { executeAggregate } from "./aggregate";
 import { executeTransform } from "./transform";
 import { executeDatetime } from "./datetime";
 import { executeCrypto } from "./crypto";
+import { executeSplitBatches } from "./splitBatches";
 
 interface NodeDef {
   id: string;
@@ -73,6 +74,8 @@ export async function executeNode(
       return executeDatetime(node, $input);
     case "crypto":
       return executeCrypto(node, $input);
+    case "splitBatches":
+      return executeSplitBatches(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

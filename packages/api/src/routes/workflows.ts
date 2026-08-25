@@ -36,15 +36,15 @@ router.get("/:id", async (req: AuthRequest, res) => {
 });
 
 router.put("/:id", async (req: AuthRequest, res) => {
-  const { name, nodes, edges, active } = req.body;
+  const { name, nodes, edges, active, errorWorkflowId } = req.body;
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.id, userId: req.userId! },
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
-  const updated = await prisma.workflow.update({
+  const updated = await (prisma as any).workflow.update({
     where: { id: req.params.id },
-    data: { name, nodes, edges, active },
+    data: { name, nodes, edges, active, ...(errorWorkflowId !== undefined ? { errorWorkflowId } : {}) },
   });
   res.json(updated);
 });
