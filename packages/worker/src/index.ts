@@ -35,6 +35,17 @@ const worker = new Worker(
       const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
       if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
+      // Concurrency guard
+      const maxConcurrency = (workflow as unknown as Record<string, unknown>).maxConcurrency as number | null;
+      if (maxConcurrency) {
+        const running = await prisma.execution.count({
+          where: { workflowId, status: "RUNNING", id: { not: executionId } },
+        });
+        if (running >= maxConcurrency) {
+          throw new Error(`Concurrency limit reached (max ${maxConcurrency} simultaneous executions)`);
+        }
+      }
+
       const timeoutMs = ((workflow as unknown as Record<string, unknown>).timeoutMs as number | null) ?? 300_000;
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)

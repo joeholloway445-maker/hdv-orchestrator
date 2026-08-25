@@ -52,6 +52,7 @@ interface WorkflowRecord {
   tags?: string[];
   errorWorkflowId?: string;
   timeoutMs?: number | null;
+  maxConcurrency?: number | null;
   nodes: Node<NodeData>[];
   edges: Edge[];
 }
@@ -353,7 +354,7 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, tags: workflow?.tags ?? [], errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null, maxConcurrency: workflow?.maxConcurrency ?? null });
     setSaving(false);
   }
 
@@ -410,7 +411,14 @@ export function EditorPage() {
   }
 
   function exportWorkflow() {
-    const blob = new Blob([JSON.stringify({ nodes, edges, name: workflow?.name }, null, 2)], {
+    const blob = new Blob([JSON.stringify({
+      name: workflow?.name,
+      tags: workflow?.tags ?? [],
+      errorWorkflowId: workflow?.errorWorkflowId,
+      timeoutMs: workflow?.timeoutMs,
+      nodes,
+      edges,
+    }, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -429,10 +437,18 @@ export function EditorPage() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       const text = await file.text();
-      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string };
+      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string; tags?: string[]; errorWorkflowId?: string; timeoutMs?: number };
       setNodes(parsed.nodes || []);
       setEdges(parsed.edges || []);
-      if (parsed.name && workflow) setWorkflow({ ...workflow, name: parsed.name });
+      if (workflow) {
+        setWorkflow({
+          ...workflow,
+          ...(parsed.name ? { name: parsed.name } : {}),
+          ...(parsed.tags ? { tags: parsed.tags } : {}),
+          ...(parsed.errorWorkflowId !== undefined ? { errorWorkflowId: parsed.errorWorkflowId } : {}),
+          ...(parsed.timeoutMs !== undefined ? { timeoutMs: parsed.timeoutMs } : {}),
+        });
+      }
     };
     input.click();
   }
@@ -542,6 +558,16 @@ export function EditorPage() {
                   value={workflow?.timeoutMs ?? ""}
                   placeholder="300000"
                   onChange={(e) => setWorkflow((w) => (w ? { ...w, timeoutMs: e.target.value ? Number(e.target.value) : null } : w))}
+                />
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Max Concurrent Executions</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.maxConcurrency ?? ""}
+                  placeholder="Unlimited"
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, maxConcurrency: e.target.value ? Number(e.target.value) : null } : w))}
                 />
                 <label className="text-xs text-gray-400 block mt-3 mb-1">Tags (comma-separated)</label>
                 <input

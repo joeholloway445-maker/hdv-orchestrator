@@ -44,7 +44,7 @@ router.get("/:id", async (req: AuthRequest, res) => {
 });
 
 router.put("/:id", async (req: AuthRequest, res) => {
-  const { name, nodes, edges, active, errorWorkflowId, timeoutMs, tags } = req.body;
+  const { name, nodes, edges, active, errorWorkflowId, timeoutMs, tags, maxConcurrency } = req.body;
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.id, userId: req.userId! },
   });
@@ -57,6 +57,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
       ...(errorWorkflowId !== undefined ? { errorWorkflowId } : {}),
       ...(timeoutMs !== undefined ? { timeoutMs: timeoutMs ? Number(timeoutMs) : null } : {}),
       ...(Array.isArray(tags) ? { tags } : {}),
+      ...(maxConcurrency !== undefined ? { maxConcurrency: maxConcurrency ? Number(maxConcurrency) : null } : {}),
     },
   });
   res.json(updated);

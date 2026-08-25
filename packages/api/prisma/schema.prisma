@@ -29,6 +29,7 @@ model Workflow {
   tags              String[]          @default([])
   errorWorkflowId   String?
   timeoutMs         Int?
+  maxConcurrency    Int?
   nodes             Json              @default("[]")
   edges             Json              @default("[]")
   createdAt  DateTime          @default(now())

@@ -385,10 +385,29 @@ export function NodeConfigPanel({
 
             {/* Schedule Trigger */}
             {nodeType === "scheduleTrigger" && (
-              <div>
+              <div className="space-y-2">
                 <label className={labelCls}>Cron Expression</label>
                 <input className={inputCls + " font-mono"} value={local.cronExpression || ""} onChange={(e) => patch({ cronExpression: e.target.value })} placeholder="*/5 * * * *" />
-                <p className="text-xs text-gray-500 mt-1">Workflow must be Active to run · min hour day month weekday</p>
+                <p className="text-xs text-gray-500">min hour day month weekday · Workflow must be Active</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {[
+                    { label: "Every minute", value: "* * * * *" },
+                    { label: "Every 5 min", value: "*/5 * * * *" },
+                    { label: "Every hour", value: "0 * * * *" },
+                    { label: "Daily midnight", value: "0 0 * * *" },
+                    { label: "Weekdays 9am", value: "0 9 * * 1-5" },
+                    { label: "Weekly Mon", value: "0 0 * * 1" },
+                  ].map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition"
+                      onClick={() => patch({ cronExpression: p.value })}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
