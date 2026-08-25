@@ -128,6 +128,29 @@ const TEMPLATES = [
     ],
   },
   {
+    id: "slack-alert",
+    name: "Webhook → Slack Alert",
+    description: "Receives a webhook and posts a formatted message to Slack. Good for alert routing and notifications.",
+    tags: ["slack", "webhook", "notifications"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace" } },
+      { id: "n2", type: "slack", position: { x: 300, y: 200 }, data: { label: "Send Slack", nodeType: "slack", webhookUrl: "", text: "Alert: {{$input.body.message}} — at {{$now}}", username: "Workflow Bot", iconEmoji: ":bell:" } },
+    ],
+    edges: [{ id: "e1", source: "n1", target: "n2" }],
+  },
+  {
+    id: "db-query-respond",
+    name: "Webhook → DB Query → Respond",
+    description: "Receives a webhook, queries Postgres for a record by ID, and returns the result as a JSON response.",
+    tags: ["database", "webhook", "postgres"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "database", position: { x: 300, y: 200 }, data: { label: "Query DB", nodeType: "database", dialect: "postgres", host: "localhost", port: "5432", database: "mydb", user: "postgres", query: "SELECT * FROM users WHERE id = '{{$input.body.id}}' LIMIT 1", operation: "query" } },
+      { id: "n3", type: "respond", position: { x: 540, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [{ id: "e1", source: "n1", target: "n2" }, { id: "e2", source: "n2", target: "n3" }],
+  },
+  {
     id: "crypto-hash-pipeline",
     name: "Hash & Transform Pipeline",
     description: "Receives data via webhook, hashes a field with SHA-256, transforms the output, and responds.",

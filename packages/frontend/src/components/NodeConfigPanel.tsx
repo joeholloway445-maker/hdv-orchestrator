@@ -741,6 +741,10 @@ export function NodeConfigPanel({
                     <button onClick={() => patch({ mappings: [...mappings, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add mapping</button>
                   </div>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!local.parallel} onChange={(e) => patch({ parallel: e.target.checked })} />
+                  <span className={labelCls + " mb-0"}>Parallel execution (Promise.all)</span>
+                </label>
               </>
             )}
 
