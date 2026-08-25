@@ -25,6 +25,7 @@ interface ExecutionRow {
 
 interface ExecutionDetail extends ExecutionRow {
   nodeLogs: NodeLog[];
+  data?: { note?: string; [key: string]: unknown };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -85,11 +86,24 @@ function NodeLogRow({ log }: { log: NodeLog }) {
   );
 }
 
-function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDetail; onClose: () => void }) {
+function ExecutionDetailPanel({ execution, onClose, onNoteUpdate }: { execution: ExecutionDetail; onClose: () => void; onNoteUpdate?: (note: string) => void }) {
+  const [note, setNote] = useState(execution.data?.note ?? "");
+  const [savingNote, setSavingNote] = useState(false);
+
+  async function saveNote() {
+    setSavingNote(true);
+    try {
+      await api.patch(`/executions/${execution.id}`, { note });
+      onNoteUpdate?.(note);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl"
+        className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
@@ -105,7 +119,25 @@ function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDeta
             <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+        <div className="px-5 pt-3 pb-2">
+          <div className="flex gap-2 items-start">
+            <textarea
+              className="flex-1 bg-gray-800 text-white text-xs rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-700"
+              rows={2}
+              placeholder="Add a note about this execution…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <button
+              onClick={saveNote}
+              disabled={savingNote}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs rounded px-3 py-1.5 transition whitespace-nowrap"
+            >
+              {savingNote ? "…" : "Save note"}
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-2">
           {execution.nodeLogs.length === 0 ? (
             <p className="text-gray-600 text-sm">No node logs yet.</p>
           ) : (
@@ -120,7 +152,7 @@ function ExecutionDetailPanel({ execution, onClose }: { execution: ExecutionDeta
           )}
           <button
             onClick={() => {
-              const blob = new Blob([JSON.stringify({ id: execution.id, status: execution.status, startedAt: execution.startedAt, finishedAt: execution.finishedAt, nodeLogs: execution.nodeLogs }, null, 2)], { type: "application/json" });
+              const blob = new Blob([JSON.stringify({ id: execution.id, status: execution.status, startedAt: execution.startedAt, finishedAt: execution.finishedAt, note, nodeLogs: execution.nodeLogs }, null, 2)], { type: "application/json" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
@@ -167,7 +199,7 @@ export function ExecutionsPage() {
   async function openDetail(e: ExecutionRow) {
     const { data } = await api.get(`/executions/${e.id}`);
     const full = data as ExecutionDetail;
-    setDetail({ ...e, nodeLogs: full.nodeLogs || [] });
+    setDetail({ ...e, nodeLogs: full.nodeLogs || [], data: full.data });
   }
 
   async function deleteExecution(e: ExecutionRow, ev: React.MouseEvent) {
@@ -212,7 +244,7 @@ export function ExecutionsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} />}
+      {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} onNoteUpdate={(note) => setDetail((d) => d ? { ...d, data: { ...(d.data ?? {}), note } } : d)} />}
 
       <header className="border-b border-gray-800 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
