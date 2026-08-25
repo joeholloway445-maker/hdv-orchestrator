@@ -119,6 +119,14 @@ export const HtmlExtractNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-orange-800" icon="🔍" />
 );
 
+export const DatabaseNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-green-900" icon="🗄" hasErrorOutput />
+);
+
+export const SlackNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-purple-600" icon="💬" hasErrorOutput />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -163,5 +171,7 @@ export const nodeTypes = {
   jsonPath: JsonPathNode,
   csv: CsvNode,
   htmlExtract: HtmlExtractNode,
+  database: DatabaseNode,
+  slack: SlackNode,
   stickyNote: StickyNoteNode,
 };

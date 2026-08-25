@@ -1299,6 +1299,80 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* Database Node */}
+            {nodeType === "database" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Dialect</label>
+                  <select className={inputCls} value={(local.dialect as string) || "postgres"} onChange={(e) => patch({ dialect: e.target.value })}>
+                    <option value="postgres">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Host</label>
+                  <input className={inputCls} value={(local.host as string) || ""} onChange={(e) => patch({ host: e.target.value })} placeholder="localhost" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelCls}>Port</label>
+                    <input className={inputCls} type="number" value={(local.port as string) || ""} onChange={(e) => patch({ port: e.target.value })} placeholder="5432" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Database</label>
+                    <input className={inputCls} value={(local.database as string) || ""} onChange={(e) => patch({ database: e.target.value })} placeholder="mydb" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelCls}>User</label>
+                    <input className={inputCls} value={(local.user as string) || ""} onChange={(e) => patch({ user: e.target.value })} placeholder="postgres" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Password</label>
+                    <input className={inputCls} type="password" value={(local.password as string) || ""} onChange={(e) => patch({ password: e.target.value })} placeholder="••••••••" />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>SQL Query (supports {"{{expressions}}"})</label>
+                  <textarea className={inputCls + " resize-y font-mono text-xs"} rows={5} value={(local.query as string) || ""} onChange={(e) => patch({ query: e.target.value })} placeholder={"SELECT * FROM users WHERE id = '{{$input.userId}}'"} />
+                </div>
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={(local.operation as string) || "query"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="query">Query (returns rows)</option>
+                    <option value="execute">Execute (no rows)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Slack Node */}
+            {nodeType === "slack" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Webhook URL</label>
+                  <input className={inputCls} type="password" value={(local.webhookUrl as string) || ""} onChange={(e) => patch({ webhookUrl: e.target.value })} placeholder="https://hooks.slack.com/services/..." />
+                </div>
+                <div>
+                  <label className={labelCls}>Message Text (supports {"{{expressions}}"})</label>
+                  <ExpressionInput value={(local.text as string) || ""} onChange={(v) => patch({ text: v })} placeholder={"Hello from {{$input.name}}!"} suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Channel (optional)</label>
+                  <input className={inputCls} value={(local.channel as string) || ""} onChange={(e) => patch({ channel: e.target.value })} placeholder="#general" />
+                </div>
+                <div>
+                  <label className={labelCls}>Bot Username (optional)</label>
+                  <input className={inputCls} value={(local.username as string) || ""} onChange={(e) => patch({ username: e.target.value })} placeholder="Workflow Bot" />
+                </div>
+                <div>
+                  <label className={labelCls}>Icon Emoji (optional)</label>
+                  <input className={inputCls} value={(local.iconEmoji as string) || ""} onChange={(e) => patch({ iconEmoji: e.target.value })} placeholder=":robot_face:" />
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">

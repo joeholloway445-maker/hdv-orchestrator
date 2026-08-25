@@ -25,6 +25,7 @@ import { executeJsonPath } from "./jsonPath";
 import { executeStopError } from "./stopError";
 import { executeMerge } from "./merge";
 import { executeDatabase } from "./database";
+import { executeSlack } from "./slack";
 
 interface NodeDef {
   id: string;
@@ -98,6 +99,8 @@ export async function executeNode(
       return executeHtmlExtract(node, $input);
     case "database":
       return executeDatabase(node, $input);
+    case "slack":
+      return executeSlack(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

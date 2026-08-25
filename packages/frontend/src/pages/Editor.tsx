@@ -87,6 +87,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL", category: "Core" },
   { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS", category: "Core" },
   { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email", category: "Core" },
+  { type: "slack", label: "Slack", color: "bg-purple-600", description: "Send Slack message via webhook", category: "Core" },
+  { type: "database", label: "Database", color: "bg-green-900", description: "Query Postgres or MySQL", category: "Core" },
   { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response", category: "Core" },
   // Flow
   { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing", category: "Flow" },
