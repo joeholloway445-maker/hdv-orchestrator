@@ -117,6 +117,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "jsonPath", label: "JSON Path", color: "bg-indigo-600", description: "Get, set, pick, omit, rename fields", category: "Data" },
   { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
   { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
+  { type: "xml", label: "XML", color: "bg-lime-700", description: "Parse or stringify XML", category: "Data" },
+  { type: "rss", label: "RSS / Atom", color: "bg-orange-600", description: "Fetch and parse RSS/Atom feed", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 

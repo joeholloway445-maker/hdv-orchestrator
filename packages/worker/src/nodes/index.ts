@@ -26,6 +26,8 @@ import { executeStopError } from "./stopError";
 import { executeMerge } from "./merge";
 import { executeDatabase } from "./database";
 import { executeSlack } from "./slack";
+import { executeXml } from "./xml";
+import { executeRss } from "./rss";
 
 interface NodeDef {
   id: string;
@@ -101,6 +103,10 @@ export async function executeNode(
       return executeDatabase(node, $input);
     case "slack":
       return executeSlack(node, $input);
+    case "xml":
+      return executeXml(node, $input);
+    case "rss":
+      return executeRss(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

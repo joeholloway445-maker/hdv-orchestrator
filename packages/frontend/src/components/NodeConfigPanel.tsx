@@ -1381,6 +1381,62 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* XML Node */}
+            {nodeType === "xml" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={(local.operation as string) || "parse"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="parse">Parse XML → Object</option>
+                    <option value="stringify">Stringify Object → XML</option>
+                    <option value="toArray">XML → Item Array</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Input Field</label>
+                  <input className={inputCls} value={(local.inputField as string) || "body"} onChange={(e) => patch({ inputField: e.target.value })} placeholder="body" />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || "data"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="data" />
+                </div>
+                {(local.operation === "stringify") && (
+                  <div>
+                    <label className={labelCls}>Root Tag</label>
+                    <input className={inputCls} value={(local.rootTag as string) || "root"} onChange={(e) => patch({ rootTag: e.target.value })} placeholder="root" />
+                  </div>
+                )}
+                {(local.operation === "toArray") && (
+                  <div>
+                    <label className={labelCls}>Item Tag</label>
+                    <input className={inputCls} value={(local.itemTag as string) || "item"} onChange={(e) => patch({ itemTag: e.target.value })} placeholder="item" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* RSS Node */}
+            {nodeType === "rss" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Feed URL</label>
+                  <ExpressionInput value={(local.url as string) || ""} onChange={(v) => patch({ url: v })} placeholder="https://example.com/feed.xml" suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || "items"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Max Items (0 = all)</label>
+                  <input className={inputCls} type="number" min={0} value={(local.limit as string) || "0"} onChange={(e) => patch({ limit: e.target.value })} placeholder="0" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="rss-channel" checked={local.includeChannel !== false} onChange={(e) => patch({ includeChannel: e.target.checked })} />
+                  <label htmlFor="rss-channel" className="text-xs text-gray-300">Include channel metadata</label>
+                </div>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">
