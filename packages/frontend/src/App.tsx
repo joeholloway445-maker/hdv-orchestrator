@@ -9,6 +9,7 @@ import { VariablesPage } from "./pages/Variables";
 import { ExecutionsPage } from "./pages/Executions";
 import { TokensPage } from "./pages/Tokens";
 import { WebhooksPage } from "./pages/Webhooks";
+import { TemplatesPage } from "./pages/Templates";
 import { useAuthStore } from "./store/auth";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -83,6 +84,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <WebhooksPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/templates"
+          element={
+            <PrivateRoute>
+              <TemplatesPage />
             </PrivateRoute>
           }
         />

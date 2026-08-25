@@ -76,6 +76,12 @@ export function DashboardPage() {
         <h1 className="text-xl font-bold tracking-tight">Workflow Platform</h1>
         <div className="flex items-center gap-4">
           <button
+            onClick={() => navigate("/templates")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Templates
+          </button>
+          <button
             onClick={() => navigate("/memory")}
             className="text-sm text-gray-400 hover:text-white transition"
           >
@@ -126,6 +132,12 @@ export function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">My Workflows</h2>
           <div className="flex gap-2">
+            <button
+              onClick={() => navigate("/templates")}
+              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"
+            >
+              From Template
+            </button>
             <button
               onClick={importWorkflow}
               className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"

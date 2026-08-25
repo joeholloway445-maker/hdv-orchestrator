@@ -11,6 +11,7 @@ import { memoryRouter } from "./routes/memory";
 import { credentialsRouter } from "./routes/credentials";
 import { variablesRouter } from "./routes/variables";
 import { tokensRouter } from "./routes/tokens";
+import { templatesRouter } from "./routes/templates";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 
@@ -33,6 +34,7 @@ app.use("/memory", verifyToken, memoryRouter);
 app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
+app.use("/templates", verifyToken, templatesRouter);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
