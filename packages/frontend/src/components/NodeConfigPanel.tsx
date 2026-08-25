@@ -438,7 +438,7 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>URL</label>
-                  <input className={inputCls} value={local.url || ""} onChange={(e) => patch({ url: e.target.value })} placeholder="https://api.example.com/endpoint" />
+                  <ExpressionInput value={local.url || ""} onChange={(v) => patch({ url: v })} placeholder="https://api.example.com/{{$input.id}}" suggestions={inputSuggestions} />
                 </div>
                 <div>
                   <label className={labelCls}>Content Type</label>
@@ -454,9 +454,9 @@ export function NodeConfigPanel({
                     <label className={labelCls}>Form Fields</label>
                     <div className="space-y-1">
                       {formFields.map((f, i) => (
-                        <div key={i} className="flex gap-1">
-                          <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="field" value={f.key} onChange={(e) => { const n = [...formFields]; n[i] = { ...n[i], key: e.target.value }; patch({ formFields: n }); }} />
-                          <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.value}}" value={f.value} onChange={(e) => { const n = [...formFields]; n[i] = { ...n[i], value: e.target.value }; patch({ formFields: n }); }} />
+                        <div key={i} className="flex gap-1 items-center">
+                          <input className="w-28 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="field" value={f.key} onChange={(e) => { const n = [...formFields]; n[i] = { ...n[i], key: e.target.value }; patch({ formFields: n }); }} />
+                          <ExpressionInput className="flex-1" placeholder="{{$input.value}}" value={f.value} onChange={(v) => { const n = [...formFields]; n[i] = { ...n[i], value: v }; patch({ formFields: n }); }} suggestions={inputSuggestions} />
                           <button onClick={() => patch({ formFields: formFields.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
                         </div>
                       ))}
@@ -642,9 +642,9 @@ export function NodeConfigPanel({
                 <label className={labelCls}>Field Mappings</label>
                 <div className="space-y-2">
                   {mappings.map((m, i) => (
-                    <div key={i} className="flex gap-1">
-                      <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
-                      <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.field}}" value={m.value} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], value: e.target.value }; patch({ mappings: n }); }} />
+                    <div key={i} className="flex gap-1 items-center">
+                      <input className="w-28 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
+                      <ExpressionInput className="flex-1" placeholder="{{$input.field}}" value={m.value} onChange={(v) => { const n = [...mappings]; n[i] = { ...n[i], value: v }; patch({ mappings: n }); }} suggestions={inputSuggestions} />
                       <button onClick={() => patch({ mappings: mappings.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
                     </div>
                   ))}
@@ -665,9 +665,9 @@ export function NodeConfigPanel({
                   <label className={labelCls}>Item Mappings (optional)</label>
                   <div className="space-y-2">
                     {mappings.map((m, i) => (
-                      <div key={i} className="flex gap-1">
-                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
-                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{item.field}}" value={m.value} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], value: e.target.value }; patch({ mappings: n }); }} />
+                      <div key={i} className="flex gap-1 items-center">
+                        <input className="w-28 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
+                        <ExpressionInput className="flex-1" placeholder="{{item.field}}" value={m.value} onChange={(v) => { const n = [...mappings]; n[i] = { ...n[i], value: v }; patch({ mappings: n }); }} suggestions={inputSuggestions} />
                         <button onClick={() => patch({ mappings: mappings.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
                       </div>
                     ))}
@@ -934,9 +934,9 @@ export function NodeConfigPanel({
                   <label className={labelCls}>Field Mappings (output key → expression)</label>
                   <div className="space-y-2">
                     {mappings.map((m, i) => (
-                      <div key={i} className="flex gap-1">
-                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="output.key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
-                        <input className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="{{$input.field}}" value={m.value} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], value: e.target.value }; patch({ mappings: n }); }} />
+                      <div key={i} className="flex gap-1 items-center">
+                        <input className="w-28 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none" placeholder="output.key" value={m.key} onChange={(e) => { const n = [...mappings]; n[i] = { ...n[i], key: e.target.value }; patch({ mappings: n }); }} />
+                        <ExpressionInput className="flex-1" placeholder="{{$input.field}}" value={m.value} onChange={(v) => { const n = [...mappings]; n[i] = { ...n[i], value: v }; patch({ mappings: n }); }} suggestions={inputSuggestions} />
                         <button onClick={() => patch({ mappings: mappings.filter((_, j) => j !== i) })} className="text-gray-500 hover:text-red-400 px-1">×</button>
                       </div>
                     ))}

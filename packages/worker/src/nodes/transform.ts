@@ -1,26 +1,7 @@
+import { interpolate } from "../lib/expr";
+
 interface NodeDef {
   data: Record<string, unknown>;
-}
-
-function getPath(obj: unknown, path: string): unknown {
-  return path.trim().split(".").reduce((acc: unknown, key) => {
-    if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
-    return undefined;
-  }, obj);
-}
-
-function interpolate(template: string, data: unknown): unknown {
-  // Pure path reference: {{path}} → returns the raw value (not stringified)
-  const pureRef = template.match(/^\{\{(.+?)\}\}$/);
-  if (pureRef) {
-    const val = getPath(data, pureRef[1]);
-    return val !== undefined ? val : null;
-  }
-  // Mixed template with multiple placeholders → always stringify
-  return template.replace(/\{\{(.+?)\}\}/g, (_, key: string) => {
-    const val = getPath(data, key);
-    return val !== undefined ? String(val) : "";
-  });
 }
 
 function setPath(obj: Record<string, unknown>, path: string, value: unknown): void {
@@ -44,7 +25,7 @@ export function executeTransform(node: NodeDef, $input: Record<string, unknown>)
   for (const { key, value } of mappings) {
     if (!key) continue;
     const resolved = interpolate(value, $input);
-    setPath(output, key, resolved);
+    setPath(output, key, resolved ?? null);
   }
 
   return output;

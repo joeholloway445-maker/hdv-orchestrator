@@ -801,6 +801,7 @@ export function EditorPage() {
             onClose={() => setSelectedNode(null)}
             nodeLog={selectedNodeLog}
             inputSuggestions={inputSuggestions}
+            webhookBaseUrl={import.meta.env.VITE_API_BASE_URL || "http://localhost:4000"}
           />
         )}
       </div>
