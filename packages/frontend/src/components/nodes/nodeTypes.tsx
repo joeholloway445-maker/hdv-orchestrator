@@ -99,6 +99,10 @@ export const ValidateNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-red-700" icon="✓" hasErrorOutput />
 );
 
+export const JsonPathNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-indigo-600" icon="🔎" />
+);
+
 export const CsvNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-green-700" icon="📊" />
 );
@@ -146,6 +150,7 @@ export const nodeTypes = {
   crypto: CryptoNode,
   splitBatches: SplitBatchesNode,
   validate: ValidateNode,
+  jsonPath: JsonPathNode,
   csv: CsvNode,
   htmlExtract: HtmlExtractNode,
   stickyNote: StickyNoteNode,

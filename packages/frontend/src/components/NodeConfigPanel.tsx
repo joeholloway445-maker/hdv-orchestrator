@@ -909,6 +909,59 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* JSON Path */}
+            {nodeType === "jsonPath" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={local.operation || "get"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="get">Get — extract one value</option>
+                    <option value="set">Set — assign a value</option>
+                    <option value="delete">Delete — remove a field</option>
+                    <option value="pick">Pick — keep only listed fields</option>
+                    <option value="omit">Omit — remove listed fields</option>
+                    <option value="rename">Rename — rename a field</option>
+                  </select>
+                </div>
+                {(local.operation === "get" || local.operation === "set" || local.operation === "delete") && (
+                  <div>
+                    <label className={labelCls}>Path (dot notation, e.g. user.address.city)</label>
+                    <input className={inputCls + " font-mono"} value={(local.path as string) || ""} onChange={(e) => patch({ path: e.target.value })} placeholder="user.name" />
+                  </div>
+                )}
+                {(local.operation === "pick" || local.operation === "omit") && (
+                  <div>
+                    <label className={labelCls}>Paths (comma-separated)</label>
+                    <input className={inputCls + " font-mono"} value={(local.paths as string) || ""} onChange={(e) => patch({ paths: e.target.value })} placeholder="name, email, address.city" />
+                  </div>
+                )}
+                {local.operation === "set" && (
+                  <div>
+                    <label className={labelCls}>Value (JSON or plain string)</label>
+                    <input className={inputCls} value={(local.value as string) || ""} onChange={(e) => { let v: unknown = e.target.value; try { v = JSON.parse(e.target.value); } catch {} patch({ value: v }); }} placeholder='"hello" or 42 or true' />
+                  </div>
+                )}
+                {local.operation === "rename" && (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className={labelCls}>From</label>
+                      <input className={inputCls + " font-mono"} value={(local.from as string) || ""} onChange={(e) => patch({ from: e.target.value })} placeholder="oldName" />
+                    </div>
+                    <div className="flex-1">
+                      <label className={labelCls}>To</label>
+                      <input className={inputCls + " font-mono"} value={(local.to as string) || ""} onChange={(e) => patch({ to: e.target.value })} placeholder="newName" />
+                    </div>
+                  </div>
+                )}
+                {local.operation === "get" && (
+                  <div>
+                    <label className={labelCls}>Output Field</label>
+                    <input className={inputCls} value={(local.outputField as string) || "value"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="value" />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* CSV */}
             {nodeType === "csv" && (
               <div className="space-y-2">

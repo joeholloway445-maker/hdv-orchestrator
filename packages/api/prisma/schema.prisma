@@ -24,9 +24,11 @@ model Workflow {
   userId     String
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
-  active     Boolean           @default(false)
-  nodes      Json              @default("[]")
-  edges      Json              @default("[]")
+  active            Boolean           @default(false)
+  errorWorkflowId   String?
+  timeoutMs         Int?
+  nodes             Json              @default("[]")
+  edges             Json              @default("[]")
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
   executions Execution[]

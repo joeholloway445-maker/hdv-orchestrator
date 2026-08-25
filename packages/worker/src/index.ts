@@ -35,7 +35,14 @@ const worker = new Worker(
       const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
       if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
-      const finalOutputs = await executeWorkflow({ workflow, executionId, triggerData, publisher, prisma });
+      const timeoutMs = ((workflow as unknown as Record<string, unknown>).timeoutMs as number | null) ?? 300_000;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
+      );
+      const finalOutputs = await Promise.race([
+        executeWorkflow({ workflow, executionId, triggerData, publisher, prisma }),
+        timeoutPromise,
+      ]);
 
       // Hoist _webhookResponse from any respond node output so the API can poll it
       let webhookResponse: unknown = undefined;

@@ -50,6 +50,7 @@ interface WorkflowRecord {
   name: string;
   active: boolean;
   errorWorkflowId?: string;
+  timeoutMs?: number | null;
   nodes: Node<NodeData>[];
   edges: Edge[];
 }
@@ -106,6 +107,7 @@ export const NODE_TYPE_CONFIG = [
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
   { type: "validate", label: "Validate", color: "bg-red-700", description: "Validate field rules", category: "Utilities" },
+  { type: "jsonPath", label: "JSON Path", color: "bg-indigo-600", description: "Get, set, pick, omit, rename fields", category: "Data" },
   { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
   { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
@@ -335,7 +337,7 @@ export function EditorPage() {
 
   async function save() {
     setSaving(true);
-    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, errorWorkflowId: workflow?.errorWorkflowId || null });
+    await api.put(`/workflows/${id}`, { nodes, edges, name: workflow?.name, active: workflow?.active, errorWorkflowId: workflow?.errorWorkflowId || null, timeoutMs: workflow?.timeoutMs ?? null });
     setSaving(false);
   }
 
@@ -504,6 +506,15 @@ export function EditorPage() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Triggered automatically when this workflow fails.</p>
+                <label className="text-xs text-gray-400 block mt-3 mb-1">Execution Timeout (ms, default 300000)</label>
+                <input
+                  type="number"
+                  min="1000"
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  value={workflow?.timeoutMs ?? ""}
+                  placeholder="300000"
+                  onChange={(e) => setWorkflow((w) => (w ? { ...w, timeoutMs: e.target.value ? Number(e.target.value) : null } : w))}
+                />
               </div>
             )}
           </div>

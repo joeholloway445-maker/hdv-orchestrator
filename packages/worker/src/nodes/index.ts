@@ -21,6 +21,7 @@ import { executeSplitBatches } from "./splitBatches";
 import { executeValidate } from "./validate";
 import { executeCSV } from "./csv";
 import { executeHtmlExtract } from "./html";
+import { executeJsonPath } from "./jsonPath";
 
 interface NodeDef {
   id: string;
@@ -81,6 +82,8 @@ export async function executeNode(
       return executeSplitBatches(node, $input);
     case "validate":
       return executeValidate(node, $input);
+    case "jsonPath":
+      return executeJsonPath(node, $input);
     case "csv":
       return executeCSV(node, $input);
     case "htmlExtract":
