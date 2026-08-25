@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Node } from "reactflow";
 import api from "../api/client";
+import { ExpressionInput } from "./ExpressionInput";
 
 interface NodeData {
   label?: string;
@@ -33,6 +34,7 @@ interface NodeData {
   targetWorkflowId?: string;
   statusCode?: string;
   responseBody?: string;
+  syncResponse?: boolean;
   [key: string]: unknown;
 }
 
@@ -193,6 +195,15 @@ export function NodeConfigPanel({
                 {local.webhookId && (
                   <p className="text-xs text-gray-500 mt-1 font-mono break-all">POST {webhookBaseUrl}/webhooks/trigger/{local.webhookId}</p>
                 )}
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!local.syncResponse}
+                    onChange={(e) => patch({ syncResponse: e.target.checked })}
+                    className="accent-purple-500"
+                  />
+                  <span className="text-gray-300 text-xs">Sync response (hold HTTP until workflow finishes)</span>
+                </label>
               </div>
             )}
 
@@ -220,7 +231,7 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
-                  <textarea className={inputCls + " font-mono resize-none"} rows={4} value={local.body || ""} onChange={(e) => patch({ body: e.target.value })} placeholder={'{"key": "{{$input.value}}"}'} />
+                  <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
                 </div>
                 {credentials.length > 0 && (
                   <>
@@ -379,15 +390,15 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>To (supports {`{{$input.email}}`})</label>
-                  <input className={inputCls} value={local.to || ""} onChange={(e) => patch({ to: e.target.value })} placeholder="{{$input.email}}" />
+                  <ExpressionInput value={local.to || ""} onChange={(v) => patch({ to: v })} placeholder="{{$input.email}}" />
                 </div>
                 <div>
                   <label className={labelCls}>Subject</label>
-                  <input className={inputCls} value={local.subject || ""} onChange={(e) => patch({ subject: e.target.value })} placeholder="Hello {{$input.name}}" />
+                  <ExpressionInput value={local.subject || ""} onChange={(v) => patch({ subject: v })} placeholder="Hello {{$input.name}}" />
                 </div>
                 <div>
                   <label className={labelCls}>Body</label>
-                  <textarea className={inputCls + " resize-none"} rows={4} value={local.body || ""} onChange={(e) => patch({ body: e.target.value })} placeholder="Hi {{$input.name}}, ..." />
+                  <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder="Hi {{$input.name}}, ..." className={inputCls + " resize-none"} />
                 </div>
               </>
             )}
@@ -410,7 +421,7 @@ export function NodeConfigPanel({
                 </div>
                 <div>
                   <label className={labelCls}>Response Body (JSON, supports {`{{$input.field}}`})</label>
-                  <textarea className={inputCls + " font-mono resize-none"} rows={4} value={local.responseBody || ""} onChange={(e) => patch({ responseBody: e.target.value })} placeholder={'{"ok": true, "id": "{{$input.id}}"}'} />
+                  <ExpressionInput multiline value={local.responseBody || ""} onChange={(v) => patch({ responseBody: v })} placeholder={'{"ok": true, "id": "{{$input.id}}"}'} className={inputCls + " font-mono resize-none"} />
                   <p className="text-xs text-gray-500 mt-1">Leave blank to echo $input as-is</p>
                 </div>
               </>

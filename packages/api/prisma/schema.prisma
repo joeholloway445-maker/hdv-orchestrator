@@ -8,27 +8,29 @@ datasource db {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  passwordHash String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  workflows    Workflow[]
-  memories     UserMemory[]
-  credentials  Credential[]
+  id              String           @id @default(cuid())
+  email           String           @unique
+  passwordHash    String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  workflows       Workflow[]
+  memories        UserMemory[]
+  credentials     Credential[]
+  globalVariables GlobalVariable[]
 }
 
 model Workflow {
-  id         String      @id @default(cuid())
+  id         String            @id @default(cuid())
   userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
-  active     Boolean     @default(false)
-  nodes      Json        @default("[]")
-  edges      Json        @default("[]")
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  active     Boolean           @default(false)
+  nodes      Json              @default("[]")
+  edges      Json              @default("[]")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
   executions Execution[]
+  versions   WorkflowVersion[]
 }
 
 model Execution {
@@ -78,6 +80,28 @@ model Credential {
   data      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WorkflowVersion {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  name       String
+  nodes      Json     @default("[]")
+  edges      Json     @default("[]")
+  createdAt  DateTime @default(now())
+}
+
+model GlobalVariable {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
 }
 
 enum ExecutionStatus {

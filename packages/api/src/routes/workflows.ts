@@ -58,6 +58,61 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   res.status(204).send();
 });
 
+// ── Versioning ─────────────────────────────────────────────────────────────
+
+router.get("/:id/versions", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const versions = await (prisma as any).workflowVersion.findMany({
+    where: { workflowId: req.params.id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, createdAt: true },
+  });
+  res.json(versions);
+});
+
+router.post("/:id/versions", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const label = req.body.name || `Snapshot ${new Date().toISOString()}`;
+  const version = await (prisma as any).workflowVersion.create({
+    data: {
+      workflowId: workflow.id,
+      name: label,
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+    },
+  });
+  res.status(201).json(version);
+});
+
+router.post("/:id/versions/:versionId/restore", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const version = await (prisma as any).workflowVersion.findUnique({
+    where: { id: req.params.versionId },
+  });
+  if (!version || version.workflowId !== req.params.id)
+    return res.status(404).json({ error: "Version not found" });
+
+  const updated = await prisma.workflow.update({
+    where: { id: req.params.id },
+    data: { nodes: version.nodes, edges: version.edges },
+  });
+  res.json(updated);
+});
+
+// ── Execute ─────────────────────────────────────────────────────────────────
+
 router.post("/:id/execute", async (req: AuthRequest, res) => {
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.id, userId: req.userId! },

@@ -41,6 +41,7 @@ interface NodeData {
   targetWorkflowId?: string;
   statusCode?: string;
   responseBody?: string;
+  syncResponse?: boolean;
   [key: string]: unknown;
 }
 
@@ -122,6 +123,8 @@ export function EditorPage() {
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versions, setVersions] = useState<Array<{ id: string; name: string; createdAt: string }>>([]);
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
 
   const socketRef = useRef<Socket | null>(null);
@@ -306,6 +309,26 @@ export function EditorPage() {
     }, 1000);
   }
 
+  async function loadVersions() {
+    const { data } = await api.get(`/workflows/${id}/versions`);
+    setVersions(data as Array<{ id: string; name: string; createdAt: string }>);
+  }
+
+  async function snapshotWorkflow() {
+    await save();
+    const label = `Snapshot ${new Date().toLocaleString()}`;
+    await api.post(`/workflows/${id}/versions`, { name: label });
+    await loadVersions();
+  }
+
+  async function restoreVersion(versionId: string) {
+    if (!confirm("Restore this snapshot? Current unsaved changes will be lost.")) return;
+    const { data } = await api.post(`/workflows/${id}/versions/${versionId}/restore`);
+    const wf = data as WorkflowRecord;
+    setNodes((wf.nodes as Node<NodeData>[]) || []);
+    setEdges((wf.edges as Edge[]) || []);
+  }
+
   function exportWorkflow() {
     const blob = new Blob([JSON.stringify({ nodes, edges, name: workflow?.name }, null, 2)], {
       type: "application/json",
@@ -381,6 +404,12 @@ export function EditorPage() {
             className={`px-3 py-1.5 rounded-lg text-xs transition ${showHistory ? "bg-gray-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
           >
             History
+          </button>
+          <button
+            onClick={() => { setShowVersions((v) => { const next = !v; if (next) loadVersions(); return next; }); }}
+            className={`px-3 py-1.5 rounded-lg text-xs transition ${showVersions ? "bg-gray-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+          >
+            Versions
           </button>
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input
@@ -475,6 +504,38 @@ export function EditorPage() {
                     <p className="text-gray-500 text-xs mt-1">
                       {new Date(ex.startedAt).toLocaleString()}
                     </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </aside>
+        )}
+
+        {showVersions && (
+          <aside className="w-64 bg-gray-800 border-l border-gray-700 flex flex-col shrink-0">
+            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+              <h3 className="text-white text-sm font-semibold">Versions</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={snapshotWorkflow} className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition" title="Save snapshot">
+                  + Snapshot
+                </button>
+                <button onClick={() => setShowVersions(false)} className="text-gray-500 hover:text-white text-lg">×</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {versions.length === 0 ? (
+                <p className="text-gray-600 text-xs p-4">No snapshots yet. Click &ldquo;+ Snapshot&rdquo; to save the current state.</p>
+              ) : (
+                versions.map((v) => (
+                  <div key={v.id} className="px-4 py-3 border-b border-gray-700 hover:bg-gray-700/50 transition">
+                    <p className="text-xs text-gray-300 font-medium truncate">{v.name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{new Date(v.createdAt).toLocaleString()}</p>
+                    <button
+                      onClick={() => restoreVersion(v.id)}
+                      className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition"
+                    >
+                      Restore
+                    </button>
                   </div>
                 ))
               )}
