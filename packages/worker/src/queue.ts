@@ -12,6 +12,8 @@ export interface WorkflowJob {
   executionId: string;
   triggerData: Record<string, unknown>;
   checkpointExecutionId?: string;
+  /** Nesting depth for sub-workflow calls; enforces max depth guard. */
+  executionDepth?: number;
 }
 
 export async function enqueueWorkflow(job: WorkflowJob) {

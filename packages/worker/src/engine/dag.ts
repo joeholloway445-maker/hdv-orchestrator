@@ -26,13 +26,15 @@ interface Options {
   prisma: PrismaClient;
   /** If set, successful node outputs from this prior execution seed the checkpoint cache. */
   checkpointExecutionId?: string;
+  /** Current sub-workflow nesting depth; enforced in subWorkflow node. */
+  executionDepth?: number;
 }
 
 async function pub(publisher: IORedis, executionId: string, event: Record<string, unknown>) {
   await publisher.publish("workflow:telemetry", JSON.stringify({ executionId, ...event }));
 }
 
-export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId }: Options) {
+export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId, executionDepth = 0 }: Options) {
   const nodes = workflow.nodes as RawNode[];
   const edges = workflow.edges as RawEdge[];
 
@@ -134,7 +136,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
       const pinnedRaw = node.data._pinnedData;
       const rawOutput = pinnedRaw
         ? (typeof pinnedRaw === "string" ? JSON.parse(pinnedRaw) : pinnedRaw)
-        : await executeNode(node, $input, prisma);
+        : await executeNode(node, $input, prisma, executionDepth);
       // Spill large outputs to disk; store ref or value in the outputs map
       const output = await storePayload(executionId, nodeId, rawOutput);
       outputs[nodeId] = output;

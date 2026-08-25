@@ -35,6 +35,7 @@ export async function executeNode(
   node: NodeDef,
   $input: Record<string, unknown>,
   prisma?: PrismaClient,
+  executionDepth = 0,
 ): Promise<unknown> {
   const nodeType = String(node.data?.nodeType || node.type || "");
   switch (nodeType) {
@@ -63,7 +64,7 @@ export async function executeNode(
     case "email":
       return executeEmail(node, $input);
     case "subWorkflow":
-      return executeSubWorkflow(node, $input, prisma!);
+      return executeSubWorkflow(node, $input, prisma!, executionDepth);
     case "respond":
       return executeRespond(node, $input);
     case "memoryRead":
