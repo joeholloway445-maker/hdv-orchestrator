@@ -3,6 +3,8 @@ import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { DashboardPage } from "./pages/Dashboard";
 import { EditorPage } from "./pages/Editor";
+import { MemoryPage } from "./pages/Memory";
+import { CredentialsPage } from "./pages/Credentials";
 import { useAuthStore } from "./store/auth";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +31,22 @@ export default function App() {
           element={
             <PrivateRoute>
               <EditorPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/memory"
+          element={
+            <PrivateRoute>
+              <MemoryPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/credentials"
+          element={
+            <PrivateRoute>
+              <CredentialsPage />
             </PrivateRoute>
           }
         />

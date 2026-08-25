@@ -34,11 +34,11 @@ const worker = new Worker(
       const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
       if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
-      await executeWorkflow({ workflow, executionId, triggerData, publisher });
+      const finalOutputs = await executeWorkflow({ workflow, executionId, triggerData, publisher, prisma });
 
       await prisma.execution.update({
         where: { id: executionId },
-        data: { status: "SUCCESS", finishedAt: new Date() },
+        data: { status: "SUCCESS", finishedAt: new Date(), data: finalOutputs as object },
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);

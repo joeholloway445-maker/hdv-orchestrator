@@ -40,6 +40,19 @@ export function DashboardPage() {
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold tracking-tight">Workflow Platform</h1>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate("/memory")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Memory
+          </button>
+          <button
+            onClick={() => navigate("/credentials")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Credentials
+          </button>
+          <span className="text-gray-600">|</span>
           <span className="text-gray-400 text-sm">{user?.email}</span>
           <button
             onClick={logout}
