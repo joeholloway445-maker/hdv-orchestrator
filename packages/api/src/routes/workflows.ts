@@ -9,9 +9,22 @@ const prisma = new PrismaClient();
 router.get("/", async (req: AuthRequest, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const cursor = req.query.cursor as string | undefined;
+  const search = req.query.search as string | undefined;
+  const tag = req.query.tag as string | undefined;
+  const active = req.query.active as string | undefined;
 
-  const workflows = await prisma.workflow.findMany({
-    where: { userId: req.userId!, ...(cursor ? { id: { lt: cursor } } : {}) },
+  const where: Record<string, unknown> = { userId: req.userId! };
+  if (cursor) where.id = { lt: cursor };
+  if (active === "true") where.active = true;
+  if (active === "false") where.active = false;
+  if (search) where.OR = [
+    { name: { contains: search, mode: "insensitive" } },
+    { description: { contains: search, mode: "insensitive" } },
+  ];
+  if (tag) where.tags = { has: tag };
+
+  const workflows = await (prisma as any).workflow.findMany({
+    where,
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: {

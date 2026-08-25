@@ -298,6 +298,16 @@ export function EditorPage() {
     setExecutions((prev) => [fresh, ...prev]);
   }
 
+  async function cancelExecution(execId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const { data } = await api.post(`/executions/${execId}/cancel`);
+    const updated = data as ExecutionRecord;
+    setExecutions((prev) => prev.map((ex) => ex.id === execId ? { ...ex, status: updated.status } : ex));
+    if (execId === executionId) {
+      setExecuting(false);
+    }
+  }
+
   async function loadExecutionLogs(execId: string) {
     const { data } = await api.get(`/executions/${execId}`);
     const exec = data as { nodeLogs: NodeLog[] };
@@ -747,6 +757,15 @@ export function EditorPage() {
                         }`}
                       />
                       <span className="text-xs text-gray-300 capitalize flex-1">{ex.status.toLowerCase()}</span>
+                      {(ex.status === "RUNNING" || ex.status === "PENDING") && (
+                        <button
+                          onClick={(e) => cancelExecution(ex.id, e)}
+                          className="text-gray-500 hover:text-red-400 text-xs px-1 transition"
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      )}
                       {(ex.status === "FAILED" || ex.status === "SUCCESS") && (
                         <button
                           onClick={(e) => retryExecution(ex.id, e)}
