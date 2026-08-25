@@ -60,6 +60,11 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
     for (const childId of children[nodeId]) cascadeSkip(childId);
   }
 
+  // Returns true if the node has an error-handle edge and routing succeeded
+  function hasErrorEdge(nodeId: string): boolean {
+    return edges.some((e) => e.source === nodeId && (e.sourceHandle === "error" || e.label === "error"));
+  }
+
   async function processNode(nodeId: string): Promise<void> {
     if (launched.has(nodeId)) return;
     launched.add(nodeId);
@@ -84,7 +89,6 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
     nodeStatus[nodeId] = "running";
     await pub(publisher, executionId, { type: "node-started", nodeId, nodeType });
 
-    // Create node log in DB
     const logEntry = await prisma.executionNodeLog.create({
       data: { executionId, nodeId, nodeType, status: "RUNNING", input: $input as object },
     });
@@ -100,22 +104,29 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
         data: { status: "SUCCESS", output: output as object, finishedAt: new Date() },
       });
 
-      // Handle IF branch routing
+      // Determine active routing handle (IF branch / Switch)
       let activeHandle: string | null = null;
       if (nodeType === "ifBranch") {
         activeHandle = ((output as Record<string, unknown>)?._branch as string) ?? "true";
+      } else if (nodeType === "switch") {
+        activeHandle = ((output as Record<string, unknown>)?._switch as string) ?? "default";
       }
 
-      // Schedule children that are now ready
+      // Schedule ready children
       const nextNodes: string[] = [];
       for (const childId of children[nodeId]) {
         if (activeHandle !== null) {
           const edge = edges.find((e) => e.source === nodeId && e.target === childId);
           const handle = edge?.sourceHandle ?? edge?.label ?? "true";
+          if (handle === "error") continue; // never route error handle on success
           if (handle !== activeHandle) {
             cascadeSkip(childId);
             continue;
           }
+        } else {
+          // Skip error-handle children on success path
+          const edge = edges.find((e) => e.source === nodeId && e.target === childId);
+          if (edge?.sourceHandle === "error" || edge?.label === "error") continue;
         }
         if (!launched.has(childId) && isReady(childId)) {
           nextNodes.push(childId);
@@ -130,11 +141,22 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
         where: { id: logEntry.id },
         data: { status: "ERROR", error: msg, finishedAt: new Date() },
       });
-      throw error;
+
+      // Route to error branch if one exists
+      if (hasErrorEdge(nodeId)) {
+        outputs[nodeId] = { ...$input, _error: msg };
+        nodeStatus[nodeId] = "done"; // allow error branch children to run
+        const errorChildren = edges
+          .filter((e) => e.source === nodeId && (e.sourceHandle === "error" || e.label === "error"))
+          .map((e) => e.target)
+          .filter((childId) => !launched.has(childId) && isReady(childId));
+        await Promise.all(errorChildren.map(processNode));
+      } else {
+        throw error;
+      }
     }
   }
 
-  // Start with all root nodes (no parents) in parallel
   const roots = nodes.filter((n) => parents[n.id].length === 0);
   await Promise.all(roots.map((n) => processNode(n.id)));
 
