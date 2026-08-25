@@ -32,6 +32,7 @@ export async function executeHttpRequest(
     credentialInject,
     queryParams = [],
     customHeaders = [],
+    timeout: rawTimeout,
   } = node.data as {
     method?: string;
     url?: string;
@@ -41,7 +42,9 @@ export async function executeHttpRequest(
     credentialInject?: "header" | "query" | "bearer";
     queryParams?: KVPair[];
     customHeaders?: KVPair[];
+    timeout?: string | number;
   };
+  const timeoutMs = rawTimeout ? parseInt(String(rawTimeout), 10) : 30000;
 
   if (!url) throw new Error("HTTP Request node: url is required");
 
@@ -80,7 +83,7 @@ export async function executeHttpRequest(
     headers: resolvedHeaders,
     params: Object.keys(resolvedParams).length ? resolvedParams : undefined,
     data: resolvedBody,
-    timeout: 30000,
+    timeout: timeoutMs,
   });
 
   return { status: response.status, headers: response.headers, body: response.data };
