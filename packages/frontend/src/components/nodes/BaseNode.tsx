@@ -58,6 +58,9 @@ export function BaseNode({
         <div className="flex items-center gap-2">
           <span className="text-lg">{icon}</span>
           <span className="text-white font-semibold text-sm truncate flex-1">{data.label || "Node"}</span>
+          {data._pinnedData && (
+            <span title="Output pinned" className="text-xs opacity-70">📌</span>
+          )}
           {statusDot && (
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDot}`} title={data._status} />
           )}

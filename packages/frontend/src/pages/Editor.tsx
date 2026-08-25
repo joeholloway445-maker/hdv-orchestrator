@@ -361,6 +361,12 @@ export function EditorPage() {
     setSaving(false);
   }
 
+  async function toggleActive() {
+    if (!workflow) return;
+    const { data } = await api.put(`/workflows/${id}`, { active: !workflow.active });
+    setWorkflow((w) => (w ? { ...w, active: (data as WorkflowRecord).active } : w));
+  }
+
   async function execute() {
     await save();
     setNodeStatuses({});
@@ -522,15 +528,17 @@ export function EditorPage() {
           >
             Versions
           </button>
-          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={workflow?.active || false}
-              onChange={(e) => setWorkflow((w) => (w ? { ...w, active: e.target.checked } : w))}
-              className="accent-green-500"
-            />
-            Active
-          </label>
+          <button
+            onClick={toggleActive}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+              workflow?.active
+                ? "bg-green-700/60 hover:bg-green-700/80 text-green-300"
+                : "bg-gray-700 hover:bg-gray-600 text-gray-400"
+            }`}
+            title={workflow?.active ? "Click to deactivate" : "Click to activate"}
+          >
+            {workflow?.active ? "● Active" : "○ Inactive"}
+          </button>
           <div className="relative">
             <button
               onClick={() => setShowSettings((s) => !s)}
