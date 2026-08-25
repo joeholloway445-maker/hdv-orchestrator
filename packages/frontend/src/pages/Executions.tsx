@@ -150,6 +150,13 @@ export function ExecutionsPage() {
     setDetail({ ...e, nodeLogs: full.nodeLogs || [] });
   }
 
+  async function deleteExecution(e: ExecutionRow, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    if (!confirm("Delete this execution record?")) return;
+    await api.delete(`/executions/${e.id}`);
+    setExecutions((prev) => prev.filter((x) => x.id !== e.id));
+  }
+
   async function retry(e: ExecutionRow, ev: React.MouseEvent) {
     ev.stopPropagation();
     setRetrying(e.id);
@@ -255,7 +262,7 @@ export function ExecutionsPage() {
                       >
                         Logs
                       </button>
-                      {(e.status === "ERROR" || e.status === "SUCCESS") && (
+                      {(e.status === "FAILED" || e.status === "SUCCESS") && (
                         <button
                           className="text-xs text-yellow-400 hover:underline disabled:opacity-50"
                           disabled={retrying === e.id}
@@ -264,6 +271,12 @@ export function ExecutionsPage() {
                           {retrying === e.id ? "…" : "Retry"}
                         </button>
                       )}
+                      <button
+                        className="text-xs text-red-400 hover:underline"
+                        onClick={(ev) => deleteExecution(e, ev)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

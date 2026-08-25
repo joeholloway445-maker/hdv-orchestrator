@@ -58,6 +58,11 @@ export function DashboardPage() {
     setWorkflows((prev) => [data as Workflow, ...prev]);
   }
 
+  async function toggleActive(wf: Workflow) {
+    const { data } = await api.put(`/workflows/${wf.id}`, { active: !wf.active });
+    setWorkflows((prev) => prev.map((w) => (w.id === wf.id ? { ...w, active: (data as Workflow).active } : w)));
+  }
+
   async function deleteWorkflow(id: string) {
     if (!confirm("Delete this workflow?")) return;
     await api.delete(`/workflows/${id}`);
@@ -215,6 +220,17 @@ export function DashboardPage() {
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => toggleActive(wf)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition font-medium ${
+                      wf.active
+                        ? "bg-green-900/40 hover:bg-green-900/60 text-green-400"
+                        : "bg-gray-700 hover:bg-gray-600 text-gray-400"
+                    }`}
+                    title={wf.active ? "Click to deactivate" : "Click to activate"}
+                  >
+                    {wf.active ? "Active" : "Inactive"}
+                  </button>
                   <button
                     onClick={() => navigate(`/workflow/${wf.id}`)}
                     className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"

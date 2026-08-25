@@ -50,6 +50,18 @@ router.get("/:id", async (req: AuthRequest, res) => {
   res.json(execution);
 });
 
+// Delete a specific execution
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const execution = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: { select: { userId: true } } },
+  });
+  if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+  await prisma.execution.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
 // Retry a failed execution — replays with original trigger data
 router.post("/:id/retry", async (req: AuthRequest, res) => {
   const original = await prisma.execution.findUnique({

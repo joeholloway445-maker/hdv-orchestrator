@@ -62,6 +62,9 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
   function cascadeSkip(nodeId: string) {
     if (nodeStatus[nodeId] !== "pending") return;
     nodeStatus[nodeId] = "skipped";
+    const node = nodes.find((n) => n.id === nodeId);
+    const nodeType = String(node?.data?.nodeType || node?.type || "unknown");
+    pub(publisher, executionId, { type: "node-skipped", nodeId, nodeType }).catch(() => {});
     for (const childId of children[nodeId]) cascadeSkip(childId);
   }
 

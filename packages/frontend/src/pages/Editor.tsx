@@ -264,6 +264,8 @@ export function EditorPage() {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "success" }));
       } else if (event.type === "node-error" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "error" }));
+      } else if (event.type === "node-skipped" && event.nodeId) {
+        setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "skipped" }));
       } else if (event.type === "execution-failed") {
         setExecuting(false);
         refreshExecutions();
