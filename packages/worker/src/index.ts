@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
 import { startScheduler } from "./scheduler";
 import { startTestServer } from "./testServer";
+import { startStallRecovery } from "./stall";
 
 const prisma = new PrismaClient();
 
@@ -98,7 +99,17 @@ const worker = new Worker(
       }
     }
   },
-  { connection }
+  {
+    connection,
+    // Lock expires after 30s; if the worker hasn't renewed it the job is
+    // considered stalled. Lock renews every 15s (lockDuration / 2).
+    lockDuration: 30_000,
+    // Check for stalled jobs every 15s so recovery is prompt.
+    stalledInterval: 15_000,
+    // Allow one stall retry (handles transient Redis connectivity blips).
+    // If it stalls again, BullMQ marks it failed and QueueEvents fires.
+    maxStalledCount: 1,
+  }
 );
 
 worker.on("completed", (job) => console.log(`[Worker] Job ${job.id} completed`));
@@ -108,3 +119,33 @@ console.log("[Worker] Listening on workflow-execution queue...");
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
 startTestServer(prisma);
+
+// ── Stall recovery ────────────────────────────────────────────────────────────
+
+let stallCleanup: (() => Promise<void>) | null = null;
+startStallRecovery(prisma)
+  .then((cleanup) => { stallCleanup = cleanup; })
+  .catch((err) => console.error("[StallRecovery] Failed to start:", err));
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// Drain in-flight jobs before exiting so locks are released cleanly and
+// in-progress executions can finish rather than becoming orphans.
+
+async function shutdown(signal: string) {
+  console.log(`[Worker] ${signal} received — draining in-flight jobs...`);
+  try {
+    await worker.close();         // stop accepting new jobs, await current job
+    await stallCleanup?.();       // close QueueEvents listeners
+    await prisma.$disconnect();
+    connection.disconnect();
+    publisher.disconnect();
+    console.log("[Worker] Graceful shutdown complete");
+  } catch (err) {
+    console.error("[Worker] Error during shutdown:", err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT",  () => shutdown("SIGINT"));
