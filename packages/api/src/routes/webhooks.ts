@@ -26,8 +26,7 @@ async function waitForWebhookResponse(executionId: string): Promise<{ statusCode
   return null;
 }
 
-// POST /webhooks/trigger/:webhookId
-router.post("/trigger/:webhookId", async (req, res) => {
+async function handleWebhook(req: import("express").Request, res: import("express").Response) {
   const workflows = await prisma.workflow.findMany({ where: { active: true } });
 
   let targetWorkflow = null;
@@ -94,6 +93,16 @@ router.post("/trigger/:webhookId", async (req, res) => {
   }
 
   res.status(202).json({ executionId: execution.id, message: "Workflow triggered" });
-});
+}
+
+// POST /webhooks/trigger/:webhookId
+router.post("/trigger/:webhookId", handleWebhook);
+
+// GET /webhooks/trigger/:webhookId  (for GET-based integrations)
+router.get("/trigger/:webhookId", handleWebhook);
+
+// PUT + DELETE for completeness
+router.put("/trigger/:webhookId", handleWebhook);
+router.delete("/trigger/:webhookId", handleWebhook);
 
 export { router as webhooksRouter };

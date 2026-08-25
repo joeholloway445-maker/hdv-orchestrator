@@ -92,6 +92,114 @@ interface Props {
   nodeLog?: NodeLog | null;
 }
 
+interface FieldRule {
+  field: string;
+  type?: string;
+  required?: boolean;
+  minLength?: string;
+  maxLength?: string;
+  pattern?: string;
+  min?: string;
+  max?: string;
+}
+
+function ValidateConfig({
+  local,
+  patch,
+  inputCls,
+  labelCls,
+}: {
+  local: NodeData;
+  patch: (p: Partial<NodeData>) => void;
+  inputCls: string;
+  labelCls: string;
+}) {
+  const rules = ((local.rules as FieldRule[]) || []);
+
+  function patchRules(next: FieldRule[]) {
+    patch({ rules: next } as Partial<NodeData>);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={labelCls}>Mode</label>
+        <select className={inputCls} value={(local.mode as string) || "throw"} onChange={(e) => patch({ mode: e.target.value } as Partial<NodeData>)}>
+          <option value="throw">Throw (routes to error branch)</option>
+          <option value="flag">Flag (outputs _validationErrors)</option>
+        </select>
+      </div>
+      <div>
+        <label className={labelCls}>Validation Rules</label>
+        <div className="space-y-3">
+          {rules.map((rule, i) => (
+            <div key={i} className="bg-gray-700/60 rounded-lg p-2 space-y-2">
+              <div className="flex gap-1 items-center">
+                <input
+                  className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                  placeholder="field.path"
+                  value={rule.field}
+                  onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], field: e.target.value }; patchRules(n); }}
+                />
+                <button onClick={() => patchRules(rules.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-400 px-1 text-sm">×</button>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className={labelCls}>Type</label>
+                  <select className={inputCls} value={rule.type || "any"} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], type: e.target.value }; patchRules(n); }}>
+                    <option value="any">Any</option>
+                    <option value="string">String</option>
+                    <option value="number">Number</option>
+                    <option value="boolean">Boolean</option>
+                    <option value="array">Array</option>
+                    <option value="object">Object</option>
+                    <option value="null">Null</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-1 mt-4 cursor-pointer">
+                  <input type="checkbox" checked={!!rule.required} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], required: e.target.checked }; patchRules(n); }} className="accent-blue-500" />
+                  <span className="text-gray-300 text-xs">Required</span>
+                </label>
+              </div>
+              {(rule.type === "string" || !rule.type || rule.type === "any") && (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>Min Length</label>
+                    <input className={inputCls} type="number" min="0" value={rule.minLength || ""} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], minLength: e.target.value }; patchRules(n); }} placeholder="—" />
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>Max Length</label>
+                    <input className={inputCls} type="number" min="0" value={rule.maxLength || ""} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], maxLength: e.target.value }; patchRules(n); }} placeholder="—" />
+                  </div>
+                </div>
+              )}
+              {(rule.type === "string" || !rule.type || rule.type === "any") && (
+                <div>
+                  <label className={labelCls}>Pattern (regex)</label>
+                  <input className={inputCls + " font-mono"} value={rule.pattern || ""} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], pattern: e.target.value }; patchRules(n); }} placeholder="^[a-z]+$" />
+                </div>
+              )}
+              {(rule.type === "number" || rule.type === "any") && (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>Min</label>
+                    <input className={inputCls} type="number" value={rule.min ?? ""} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], min: e.target.value }; patchRules(n); }} placeholder="—" />
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>Max</label>
+                    <input className={inputCls} type="number" value={rule.max ?? ""} onChange={(e) => { const n = [...rules]; n[i] = { ...n[i], max: e.target.value }; patchRules(n); }} placeholder="—" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <button onClick={() => patchRules([...rules, { field: "" }])} className="text-blue-400 text-xs hover:underline">+ Add rule</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NodeConfigPanel({
   node,
   onUpdate,
@@ -774,6 +882,11 @@ export function NodeConfigPanel({
                   <input className={inputCls} value={local.outputField || "result"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="result" />
                 </div>
               </div>
+            )}
+
+            {/* Validate */}
+            {nodeType === "validate" && (
+              <ValidateConfig local={local} patch={patch} inputCls={inputCls} labelCls={labelCls} />
             )}
 
             {/* Split in Batches */}

@@ -51,6 +51,11 @@ export function DashboardPage() {
     navigate(`/workflow/${(data as Workflow).id}`);
   }
 
+  async function duplicateWorkflow(id: string) {
+    const { data } = await api.post(`/workflows/${id}/duplicate`);
+    setWorkflows((prev) => [data as Workflow, ...prev]);
+  }
+
   async function deleteWorkflow(id: string) {
     if (!confirm("Delete this workflow?")) return;
     await api.delete(`/workflows/${id}`);
@@ -176,12 +181,19 @@ export function DashboardPage() {
                     )}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <button
                     onClick={() => navigate(`/workflow/${wf.id}`)}
                     className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
                   >
                     Edit
+                  </button>
+                  <button
+                    onClick={() => duplicateWorkflow(wf.id)}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+                    title="Duplicate workflow"
+                  >
+                    ⧉
                   </button>
                   <button
                     onClick={() => deleteWorkflow(wf.id)}

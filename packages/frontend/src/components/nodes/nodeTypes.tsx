@@ -95,6 +95,10 @@ export const SplitBatchesNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-orange-600" icon="⊞" />
 );
 
+export const ValidateNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-red-700" icon="✓" hasErrorOutput />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -133,5 +137,6 @@ export const nodeTypes = {
   datetime: DatetimeNode,
   crypto: CryptoNode,
   splitBatches: SplitBatchesNode,
+  validate: ValidateNode,
   stickyNote: StickyNoteNode,
 };

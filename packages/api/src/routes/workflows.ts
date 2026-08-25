@@ -66,6 +66,26 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   res.status(204).send();
 });
 
+// ── Duplicate ──────────────────────────────────────────────────────────────
+
+router.post("/:id/duplicate", async (req: AuthRequest, res) => {
+  const source = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!source) return res.status(404).json({ error: "Not found" });
+
+  const copy = await prisma.workflow.create({
+    data: {
+      name: `${source.name} (Copy)`,
+      userId: req.userId!,
+      nodes: source.nodes as object[],
+      edges: source.edges as object[],
+      active: false,
+    },
+  });
+  res.status(201).json(copy);
+});
+
 // ── Versioning ─────────────────────────────────────────────────────────────
 
 router.get("/:id/versions", async (req: AuthRequest, res) => {

@@ -105,6 +105,7 @@ export const NODE_TYPE_CONFIG = [
   // Workflows
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
+  { type: "validate", label: "Validate", color: "bg-red-700", description: "Validate field rules", category: "Utilities" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 

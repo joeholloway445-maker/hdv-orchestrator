@@ -18,6 +18,7 @@ import { executeTransform } from "./transform";
 import { executeDatetime } from "./datetime";
 import { executeCrypto } from "./crypto";
 import { executeSplitBatches } from "./splitBatches";
+import { executeValidate } from "./validate";
 
 interface NodeDef {
   id: string;
@@ -76,6 +77,8 @@ export async function executeNode(
       return executeCrypto(node, $input);
     case "splitBatches":
       return executeSplitBatches(node, $input);
+    case "validate":
+      return executeValidate(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:
