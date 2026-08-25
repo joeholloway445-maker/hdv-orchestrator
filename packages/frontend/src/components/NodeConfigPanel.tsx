@@ -37,6 +37,7 @@ interface NodeData {
   syncResponse?: boolean;
   queryParams?: Array<{ key: string; value: string }>;
   customHeaders?: Array<{ key: string; value: string }>;
+  timeout?: string;
   apiKey?: string;
   model?: string;
   systemPrompt?: string;
@@ -244,6 +245,10 @@ export function NodeConfigPanel({
                 <div>
                   <label className={labelCls}>Body (JSON — use {`{{$input.field}}`})</label>
                   <ExpressionInput multiline value={local.body || ""} onChange={(v) => patch({ body: v })} placeholder={'{"key": "{{$input.value}}"}'} className={inputCls + " font-mono resize-none"} />
+                </div>
+                <div>
+                  <label className={labelCls}>Timeout (ms, default 30000)</label>
+                  <input className={inputCls} type="number" min="1000" max="300000" value={local.timeout || "30000"} onChange={(e) => patch({ timeout: e.target.value })} />
                 </div>
                 <div>
                   <label className={labelCls}>Query Params</label>

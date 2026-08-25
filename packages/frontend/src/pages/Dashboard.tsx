@@ -17,6 +17,25 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
 
+  async function importWorkflow() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { nodes: unknown; edges: unknown; name?: string };
+      const { data } = await api.post("/workflows", {
+        name: parsed.name || file.name.replace(/\.json$/, "") || "Imported Workflow",
+        nodes: parsed.nodes || [],
+        edges: parsed.edges || [],
+      });
+      navigate(`/workflow/${(data as Workflow).id}`);
+    };
+    input.click();
+  }
+
   useEffect(() => {
     api.get("/workflows").then(({ data }) => {
       setWorkflows(data as Workflow[]);
@@ -78,12 +97,20 @@ export function DashboardPage() {
       <main className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-semibold">My Workflows</h2>
-          <button
-            onClick={createWorkflow}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition"
-          >
-            + New Workflow
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={importWorkflow}
+              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"
+            >
+              Import JSON
+            </button>
+            <button
+              onClick={createWorkflow}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition"
+            >
+              + New Workflow
+            </button>
+          </div>
         </div>
 
         {loading ? (
