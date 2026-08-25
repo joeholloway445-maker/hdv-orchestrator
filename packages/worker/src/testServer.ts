@@ -34,7 +34,7 @@ export function startTestServer(prisma: PrismaClient) {
     });
   });
 
-  server.listen(port, () => {
-    console.log(`[TestServer] Listening on port ${port}`);
+  server.listen(port, "127.0.0.1", () => {
+    console.log(`[TestServer] Listening on 127.0.0.1:${port}`);
   });
 }

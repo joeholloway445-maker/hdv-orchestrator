@@ -57,14 +57,7 @@ export function executeIfBranch(node: NodeDef, $input: Record<string, unknown>):
     const results = conditions.map((c) => evalCondition(c, $input));
     result = combineMode === "OR" ? results.some(Boolean) : results.every(Boolean);
   } else {
-    // Fallback: raw JS expression for backwards compatibility
-    const condition = String(node.data?.condition || "true");
-    try {
-      const fn = new Function("$input", "get", `"use strict"; return !!(${condition});`);
-      result = Boolean(fn($input, get));
-    } catch {
-      result = false;
-    }
+    result = false;
   }
 
   return { ...$input, _branch: result ? "true" : "false" };

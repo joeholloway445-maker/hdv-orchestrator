@@ -27,6 +27,7 @@ app.use(
 app.use(express.json());
 
 app.use("/auth", authRouter);
+app.use("/webhooks/list", verifyToken, webhooksRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/workflows", verifyToken, workflowsRouter);
 app.use("/executions", verifyToken, executionsRouter);

@@ -44,9 +44,13 @@ router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
 router.get("/:id", async (req: AuthRequest, res) => {
   const execution = await prisma.execution.findUnique({
     where: { id: req.params.id },
-    include: { nodeLogs: { orderBy: { startedAt: "asc" } } },
+    include: {
+      workflow: { select: { userId: true } },
+      nodeLogs: { orderBy: { startedAt: "asc" } },
+    },
   });
   if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
   res.json(execution);
 });
 

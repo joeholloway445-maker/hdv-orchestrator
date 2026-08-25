@@ -15,11 +15,15 @@ export interface WorkflowJob {
   checkpointExecutionId?: string;
   /** Nesting depth for sub-workflow calls; enforces max depth guard. */
   executionDepth?: number;
+  /** When set, the job is delayed by this many milliseconds (for wait node resumption). */
+  delayMs?: number;
 }
 
 export async function enqueueWorkflow(job: WorkflowJob) {
-  return workflowQueue.add("execute", job, {
+  const { delayMs, ...data } = job;
+  return workflowQueue.add("execute", data, {
     attempts: 3,
     backoff: { type: "exponential", delay: 1000 },
+    ...(delayMs ? { delay: delayMs } : {}),
   });
 }

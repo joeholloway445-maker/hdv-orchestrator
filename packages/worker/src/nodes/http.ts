@@ -1,5 +1,6 @@
 import axios from "axios";
 import FormData from "form-data";
+import dns from "dns/promises";
 import { PrismaClient } from "@prisma/client";
 import { decrypt } from "../lib/crypto";
 import { interpolate as _interpolate } from "../lib/expr";
@@ -14,6 +15,43 @@ function interpolate(template: string, data: unknown): string {
 }
 
 interface KVPair { key: string; value: string }
+
+function isPrivateIp(ip: string): boolean {
+  // IPv4 private/loopback/link-local ranges
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+  const [a, b] = parts;
+  return (
+    a === 127 ||                              // 127.0.0.0/8 loopback
+    a === 10 ||                              // 10.0.0.0/8
+    (a === 172 && b >= 16 && b <= 31) ||    // 172.16.0.0/12
+    (a === 192 && b === 168) ||             // 192.168.0.0/16
+    (a === 169 && b === 254)               // 169.254.0.0/16 link-local
+  );
+}
+
+async function assertPublicUrl(rawUrl: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`HTTP Request node: invalid URL "${rawUrl}"`);
+  }
+  const { hostname } = parsed;
+  // Resolve hostname to IP(s) and block if any resolve to a private address
+  let addresses: string[];
+  try {
+    const results = await dns.lookup(hostname, { all: true });
+    addresses = results.map((r) => r.address);
+  } catch {
+    throw new Error(`HTTP Request node: could not resolve hostname "${hostname}"`);
+  }
+  for (const addr of addresses) {
+    if (isPrivateIp(addr)) {
+      throw new Error(`HTTP Request node: requests to private/loopback addresses are not allowed`);
+    }
+  }
+}
 
 export async function executeHttpRequest(
   node: NodeDef,
@@ -52,6 +90,7 @@ export async function executeHttpRequest(
   if (!url) throw new Error("HTTP Request node: url is required");
 
   const resolvedUrl = interpolate(url, $input);
+  await assertPublicUrl(resolvedUrl);
 
   let resolvedBody: unknown;
   if (contentType === "form") {

@@ -2,6 +2,8 @@ import type { Workflow } from "@prisma/client";
 import { PrismaClient } from "@prisma/client";
 import type IORedis from "ioredis";
 import { executeNode } from "../nodes";
+import { WaitSignal } from "../nodes/wait";
+import { enqueueWorkflow } from "../queue";
 import { getGlobalVars } from "../lib/globalVars";
 import { storePayload, resolvePayload, payloadSummary } from "../lib/payload";
 
@@ -178,6 +180,33 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
       }
       await Promise.all(nextNodes.map(processNode));
     } catch (error: unknown) {
+      // Wait node signals a delayed continuation — mark it done and enqueue a new execution
+      if (error instanceof WaitSignal) {
+        outputs[nodeId] = $input;
+        nodeStatus[nodeId] = "done";
+        await prisma.executionNodeLog.update({
+          where: { id: logEntry.id },
+          data: { status: "SUCCESS", output: payloadSummary($input) as object, finishedAt: new Date() },
+        });
+        await pub(publisher, executionId, { type: "node-finished", nodeId, nodeType, output: payloadSummary($input) });
+        const contExec = await prisma.execution.create({
+          data: {
+            workflowId: workflow.id,
+            status: "PENDING",
+            data: { triggerData },
+          },
+        });
+        await enqueueWorkflow({
+          workflowId: workflow.id,
+          executionId: contExec.id,
+          triggerData,
+          checkpointExecutionId: executionId,
+          executionDepth,
+          delayMs: error.delayMs,
+        });
+        return;
+      }
+
       const msg = error instanceof Error ? error.message : String(error);
       nodeStatus[nodeId] = "error";
       await pub(publisher, executionId, { type: "node-error", nodeId, nodeType, error: msg });

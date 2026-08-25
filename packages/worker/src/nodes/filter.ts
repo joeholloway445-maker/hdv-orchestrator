@@ -58,14 +58,7 @@ export function executeFilter(node: NodeDef, $input: Record<string, unknown>): u
       const results = conditions.map((c) => evalStructured(c, item, $input));
       return combineMode === "OR" ? results.some(Boolean) : results.every(Boolean);
     }
-    // Fallback: raw JS expression
-    const condition = String(node.data?.condition || "true");
-    try {
-      const fn = new Function("item", "$input", "get", `"use strict"; return !!(${condition});`);
-      return Boolean(fn(item, $input, get));
-    } catch {
-      return false;
-    }
+    return true;
   });
 
   return { ...$input, [arrayKey]: filtered, _filterCount: filtered.length };

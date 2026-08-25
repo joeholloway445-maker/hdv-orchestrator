@@ -3,6 +3,7 @@ import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
+import { enqueueWorkflow } from "./queue";
 import { startScheduler } from "./scheduler";
 import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
@@ -103,7 +104,6 @@ const worker = new Worker(
           const errExec = await prisma.execution.create({
             data: { workflowId: errorWfId, status: "PENDING", data: { triggerData: { _error: msg, _workflowId: workflowId, _executionId: executionId } } },
           });
-          const { enqueueWorkflow } = await import("./queue/producer");
           await enqueueWorkflow({ workflowId: errorWfId, executionId: errExec.id, triggerData: { _error: msg, _workflowId: workflowId, _executionId: executionId } });
         }
       }
