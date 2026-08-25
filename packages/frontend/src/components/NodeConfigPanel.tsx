@@ -739,7 +739,17 @@ export function NodeConfigPanel({
               <>
                 <div>
                   <label className={labelCls}>Model</label>
-                  <input className={inputCls} value={local.model || "claude-haiku-4-5-20251001"} onChange={(e) => patch({ model: e.target.value })} placeholder="claude-haiku-4-5-20251001" />
+                  <select className={inputCls} value={local.model || "claude-haiku-4-5-20251001"} onChange={(e) => patch({ model: e.target.value })}>
+                    <optgroup label="Claude 5 (Latest)">
+                      <option value="claude-sonnet-5">claude-sonnet-5 (Recommended)</option>
+                      <option value="claude-opus-5">claude-opus-5 (Most capable)</option>
+                      <option value="claude-fable-5">claude-fable-5</option>
+                    </optgroup>
+                    <optgroup label="Claude 4 / Previous">
+                      <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (Fast &amp; cheap)</option>
+                      <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+                    </optgroup>
+                  </select>
                 </div>
                 <div>
                   <label className={labelCls}>System Prompt (supports {`{{$input.field}}`})</label>
