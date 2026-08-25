@@ -28,9 +28,19 @@ interface NodeData {
   method?: string;
   url?: string;
   body?: string;
+  credentialId?: string;
   code?: string;
   condition?: string;
   mappings?: Array<{ key: string; value: string }>;
+  cases?: Array<{ value: string; output: string }>;
+  field?: string;
+  defaultOutput?: string;
+  cronExpression?: string;
+  arrayKey?: string;
+  duration?: string;
+  targetWorkflowId?: string;
+  statusCode?: string;
+  responseBody?: string;
   [key: string]: unknown;
 }
 
@@ -63,15 +73,26 @@ interface NodeLog {
 type NodeStatus = "running" | "success" | "error";
 
 export const NODE_TYPE_CONFIG = [
+  // Triggers
   { type: "webhookTrigger", label: "Webhook Trigger", color: "bg-purple-700", description: "HTTP POST trigger" },
   { type: "manualTrigger", label: "Manual Trigger", color: "bg-indigo-700", description: "Run manually" },
   { type: "scheduleTrigger", label: "Schedule Trigger", color: "bg-indigo-800", description: "Cron-based schedule" },
+  // HTTP & Code
   { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL" },
   { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS" },
+  { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email" },
+  // Flow control
   { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing" },
-  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
+  { type: "switch", label: "Switch", color: "bg-amber-700", description: "Multi-way routing" },
   { type: "merge", label: "Merge", color: "bg-pink-700", description: "Combine branches" },
+  { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response" },
+  // Data
+  { type: "set", label: "Set Fields", color: "bg-teal-700", description: "Map/transform fields" },
+  { type: "filter", label: "Filter", color: "bg-emerald-700", description: "Filter array items" },
   { type: "loop", label: "Loop", color: "bg-violet-700", description: "Iterate over array" },
+  { type: "wait", label: "Wait", color: "bg-slate-600", description: "Delay execution" },
+  // Workflows & Memory
+  { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow" },
   { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory" },
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory" },
 ];

@@ -6,6 +6,12 @@ import { executeIfBranch } from "./ifBranch";
 import { executeSet } from "./set";
 import { executeMemoryRead, executeMemoryWrite } from "./memory";
 import { executeLoop } from "./loop";
+import { executeWait } from "./wait";
+import { executeFilter } from "./filter";
+import { executeSwitch } from "./switch";
+import { executeEmail } from "./email";
+import { executeSubWorkflow } from "./subWorkflow";
+import { executeRespond } from "./respond";
 
 interface NodeDef {
   id: string;
@@ -16,7 +22,7 @@ interface NodeDef {
 export async function executeNode(
   node: NodeDef,
   $input: Record<string, unknown>,
-  prisma?: PrismaClient
+  prisma?: PrismaClient,
 ): Promise<unknown> {
   const nodeType = String(node.data?.nodeType || node.type || "");
   switch (nodeType) {
@@ -25,7 +31,7 @@ export async function executeNode(
     case "scheduleTrigger":
       return executeWebhookTrigger(node, $input);
     case "httpRequest":
-      return executeHttpRequest(node, $input);
+      return executeHttpRequest(node, $input, prisma);
     case "code":
       return executeCode(node, $input);
     case "ifBranch":
@@ -36,6 +42,18 @@ export async function executeNode(
       return $input;
     case "loop":
       return executeLoop(node, $input);
+    case "wait":
+      return executeWait(node, $input);
+    case "filter":
+      return executeFilter(node, $input);
+    case "switch":
+      return executeSwitch(node, $input);
+    case "email":
+      return executeEmail(node, $input);
+    case "subWorkflow":
+      return executeSubWorkflow(node, $input, prisma!);
+    case "respond":
+      return executeRespond(node, $input);
     case "memoryRead":
       return executeMemoryRead(node, $input, prisma!);
     case "memoryWrite":

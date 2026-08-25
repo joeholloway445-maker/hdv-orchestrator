@@ -1,7 +1,7 @@
 import type { NodeProps } from "reactflow";
 import { BaseNode } from "./BaseNode";
 
-type ND = { label?: string; [key: string]: unknown };
+type ND = { label?: string; cases?: Array<{ value: string; output: string }>; [key: string]: unknown };
 
 export const WebhookTriggerNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-purple-700" icon="🪝" hasInput={false} />
@@ -16,11 +16,11 @@ export const ScheduleTriggerNode = (props: NodeProps<ND>) => (
 );
 
 export const HttpRequestNode = (props: NodeProps<ND>) => (
-  <BaseNode {...props} color="bg-blue-700" icon="🌐" />
+  <BaseNode {...props} color="bg-blue-700" icon="🌐" hasErrorOutput />
 );
 
 export const CodeNode = (props: NodeProps<ND>) => (
-  <BaseNode {...props} color="bg-orange-700" icon="</>" />
+  <BaseNode {...props} color="bg-orange-700" icon="</>" hasErrorOutput />
 );
 
 export const IfBranchNode = (props: NodeProps<ND>) => (
@@ -37,6 +37,30 @@ export const MergeNode = (props: NodeProps<ND>) => (
 
 export const LoopNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-violet-700" icon="↺" />
+);
+
+export const WaitNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-slate-600" icon="⏱" />
+);
+
+export const FilterNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-emerald-700" icon="⊶" />
+);
+
+export const SwitchNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-amber-700" icon="⇌" hasSwitchOutputs />
+);
+
+export const EmailNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-sky-700" icon="✉" hasErrorOutput />
+);
+
+export const SubWorkflowNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-fuchsia-700" icon="⧉" />
+);
+
+export const RespondNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-rose-700" icon="↩" hasOutput={false} />
 );
 
 export const MemoryReadNode = (props: NodeProps<ND>) => (
@@ -57,6 +81,12 @@ export const nodeTypes = {
   set: SetNode,
   merge: MergeNode,
   loop: LoopNode,
+  wait: WaitNode,
+  filter: FilterNode,
+  switch: SwitchNode,
+  email: EmailNode,
+  subWorkflow: SubWorkflowNode,
+  respond: RespondNode,
   memoryRead: MemoryReadNode,
   memoryWrite: MemoryWriteNode,
 };
