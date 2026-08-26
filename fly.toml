@@ -1,0 +1,26 @@
+app = "vision-hdv-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "packages/api/Dockerfile"
+
+[env]
+  PORT = "4000"
+  NODE_ENV = "production"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 4000
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "10s"
+    timeout = "5s"
+    path = "/health"

@@ -1,20 +1,35 @@
-FROM node:20-alpine
-
-# isolated-vm requires native build tools
+# ── Stage 1: Install dependencies (isolated-vm needs native build tools) ──────
+FROM node:20-alpine AS deps
 RUN apk add --no-cache python3 make g++
-
 WORKDIR /app
 
-COPY packages/worker/package*.json ./
-RUN npm install
+COPY package*.json ./
+COPY packages/worker/package*.json packages/worker/
+# Prisma schema lives in the API package
+COPY packages/api/prisma/ packages/api/prisma/
 
-# Copy Prisma schema from API and generate client
-COPY packages/api/prisma ./prisma/
-RUN npx prisma generate
+# Install worker deps (hoisted to root node_modules)
+RUN npm ci --workspace=packages/worker --include-workspace-root
 
-COPY packages/worker/src ./src/
-COPY packages/worker/tsconfig.json ./
+# Generate Prisma client against the API's schema
+RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
 
-RUN npm run build
+# ── Stage 2: Compile TypeScript ────────────────────────────────────────────────
+FROM deps AS build
+WORKDIR /app
+
+COPY packages/worker/src/ packages/worker/src/
+COPY packages/worker/tsconfig.json packages/worker/
+
+RUN npm run build --workspace=packages/worker
+
+# ── Stage 3: Production runtime ───────────────────────────────────────────────
+FROM node:20-alpine AS prod
+# isolated-vm native bindings require these at runtime
+RUN apk add --no-cache python3 make g++
+WORKDIR /app
+
+COPY --from=build /app/node_modules/ ./node_modules/
+COPY --from=build /app/packages/worker/dist/ ./dist/
 
 CMD ["node", "dist/index.js"]

@@ -1,18 +1,35 @@
-FROM node:20-alpine
-
+# ── Stage 1: Install workspace dependencies ───────────────────────────────────
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-COPY packages/api/package*.json ./
-RUN npm install
+COPY package*.json ./
+COPY packages/api/package*.json packages/api/
 
-COPY packages/api/prisma ./prisma/
-RUN npx prisma generate
+# Install API deps (hoisted to root node_modules in workspace mode)
+RUN npm ci --workspace=packages/api --include-workspace-root
 
-COPY packages/api/src ./src/
-COPY packages/api/tsconfig.json ./
+# ── Stage 2: Generate Prisma client + compile TypeScript ──────────────────────
+FROM deps AS build
+WORKDIR /app
 
-RUN npm run build
+COPY packages/api/prisma/ packages/api/prisma/
+RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
+
+COPY packages/api/src/ packages/api/src/
+COPY packages/api/tsconfig.json packages/api/
+
+RUN npm run build --workspace=packages/api
+
+# ── Stage 3: Lean production runtime ──────────────────────────────────────────
+FROM node:20-alpine AS prod
+WORKDIR /app
+
+# Hoisted node_modules includes generated @prisma/client
+COPY --from=build /app/node_modules/ ./node_modules/
+# Compiled API output (outDir = dist per tsconfig)
+COPY --from=build /app/packages/api/dist/ ./dist/
+# Prisma schema needed for migrate deploy at startup
+COPY --from=build /app/packages/api/prisma/ ./prisma/
 
 EXPOSE 4000
-
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
