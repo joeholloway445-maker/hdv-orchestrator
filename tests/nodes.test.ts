@@ -2,15 +2,21 @@
  * tests/nodes.test.ts — Unit tests for pure worker node functions.
  *
  * Covers:
- *  A. executeValidate  — field rules: required, type, length, pattern, numeric range, flag mode
- *  B. executeFilter    — operators: equals/notEquals/contains/gt/lt/exists, AND/OR combine
- *  C. interpolate      — $json, $input, $vars, $now, $timestamp, single vs multi expression,
- *                        array index access with bracket notation
- *  D. executeLoop      — $item.index / $item.count context, parallel mode
- *  E. executeIfBranch  — AND/OR conditions, all operators, _branch output
- *  F. executeSet       — mappings with interpolation, passthrough
- *  G. executeSwitch    — matched case, default case, nested field
- *  H. executeAggregate — arrayKey, outputKey, flatten, count
+ *  A. executeValidate   — field rules: required, type, length, pattern, numeric range, flag mode
+ *  B. executeFilter     — operators: equals/notEquals/contains/gt/lt/exists, AND/OR combine
+ *  C. interpolate       — $json, $input, $vars, $now, $timestamp, single vs multi expression,
+ *                         array index access with bracket notation
+ *  D. executeLoop       — $item.index / $item.count context, parallel mode
+ *  E. executeIfBranch   — AND/OR conditions, all operators, _branch output
+ *  F. executeSet        — mappings with interpolation, passthrough
+ *  G. executeSwitch     — matched case, default case, nested field
+ *  H. executeAggregate  — arrayKey, outputKey, flatten, count
+ *  I. executeTransform  — keepInput, dot-path output keys, null for missing
+ *  J. executeCrypto     — sha256, base64encode/decode, urlencode, hmac_sha256
+ *  K. executeSort       — asc/desc, sortField, primitives
+ *  L. executeLimit      — start/end keepFrom, maxItems
+ *  M. executeDeduplicate — removeSubsequent, keepLast, dedupeField
+ *  N. executeRenameKeys  — from→to, removeOldKeys default
  *
  * Run: node --require ts-node/register --test tests/nodes.test.ts
  */
@@ -21,10 +27,16 @@ import { executeValidate }  from "../packages/worker/src/nodes/validate";
 import { executeFilter }    from "../packages/worker/src/nodes/filter";
 import { interpolate }      from "../packages/worker/src/lib/expr";
 import { executeLoop }      from "../packages/worker/src/nodes/loop";
-import { executeIfBranch }  from "../packages/worker/src/nodes/ifBranch";
-import { executeSet }       from "../packages/worker/src/nodes/set";
-import { executeSwitch }    from "../packages/worker/src/nodes/switch";
-import { executeAggregate } from "../packages/worker/src/nodes/aggregate";
+import { executeIfBranch }   from "../packages/worker/src/nodes/ifBranch";
+import { executeSet }        from "../packages/worker/src/nodes/set";
+import { executeSwitch }     from "../packages/worker/src/nodes/switch";
+import { executeAggregate }  from "../packages/worker/src/nodes/aggregate";
+import { executeTransform }  from "../packages/worker/src/nodes/transform";
+import { executeCrypto }     from "../packages/worker/src/nodes/crypto";
+import { executeSort }       from "../packages/worker/src/nodes/sort";
+import { executeLimit }      from "../packages/worker/src/nodes/limit";
+import { executeDeduplicate } from "../packages/worker/src/nodes/deduplicate";
+import { executeRenameKeys } from "../packages/worker/src/nodes/renameKeys";
 
 // ---------------------------------------------------------------------------
 // A. executeValidate
@@ -718,4 +730,294 @@ test("aggregate: input fields preserved alongside new outputKey", () => {
   );
   assert.equal(r.meta, "keep");
   assert.deepEqual(r.collected, [1]);
+});
+
+// ---------------------------------------------------------------------------
+// I. executeTransform
+// ---------------------------------------------------------------------------
+
+test("transform: maps a value via interpolation", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "greeting", value: "Hello {{ $input.name }}" }] } },
+    { name: "World" }
+  );
+  assert.equal(r.greeting, "Hello World");
+});
+
+test("transform: keepInput=true preserves input fields", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "x", value: "1" }], keepInput: true } },
+    { original: "keep" }
+  );
+  assert.equal(r.original, "keep");
+  assert.equal(r.x, "1");
+});
+
+test("transform: keepInput=false (default) produces only mapped keys", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "only", value: "this" }] } },
+    { original: "dropped" }
+  );
+  assert.equal(r.only, "this");
+  assert.equal(r.original, undefined);
+});
+
+test("transform: dot-path output key creates nested object", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "user.email", value: "a@b.com" }], keepInput: false } },
+    {}
+  );
+  assert.deepEqual(r.user, { email: "a@b.com" });
+});
+
+test("transform: missing interpolation resolves to null", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "val", value: "{{ $input.missing }}" }] } },
+    {}
+  );
+  assert.equal(r.val, null);
+});
+
+test("transform: multiple mappings all present", () => {
+  const r = executeTransform(
+    { data: { mappings: [{ key: "a", value: "1" }, { key: "b", value: "2" }] } },
+    {}
+  );
+  assert.equal(r.a, "1");
+  assert.equal(r.b, "2");
+});
+
+// ---------------------------------------------------------------------------
+// J. executeCrypto
+// ---------------------------------------------------------------------------
+
+test("crypto: sha256 produces 64-char hex string", () => {
+  const r = executeCrypto(
+    { data: { operation: "sha256", inputField: "hello", outputField: "hash" } },
+    {}
+  );
+  assert.ok(typeof r.hash === "string" && (r.hash as string).length === 64);
+});
+
+test("crypto: base64encode then base64decode round-trips", () => {
+  const encoded = executeCrypto(
+    { data: { operation: "base64encode", inputField: "hello world", outputField: "enc" } },
+    {}
+  );
+  const decoded = executeCrypto(
+    { data: { operation: "base64decode", inputField: encoded.enc as string, outputField: "dec" } },
+    {}
+  );
+  assert.equal(decoded.dec, "hello world");
+});
+
+test("crypto: urlencode encodes special chars", () => {
+  const r = executeCrypto(
+    { data: { operation: "urlencode", inputField: "hello world & foo=bar", outputField: "enc" } },
+    {}
+  );
+  assert.equal(r.enc, "hello%20world%20%26%20foo%3Dbar");
+});
+
+test("crypto: hmac_sha256 produces consistent output", () => {
+  const r1 = executeCrypto(
+    { data: { operation: "hmac_sha256", inputField: "msg", secretKey: "key", outputField: "sig" } },
+    {}
+  );
+  const r2 = executeCrypto(
+    { data: { operation: "hmac_sha256", inputField: "msg", secretKey: "key", outputField: "sig" } },
+    {}
+  );
+  assert.equal(r1.sig, r2.sig);
+  assert.ok(typeof r1.sig === "string" && (r1.sig as string).length === 64);
+});
+
+test("crypto: uuid produces a UUID-shaped string", () => {
+  const r = executeCrypto(
+    { data: { operation: "uuid", outputField: "id" } },
+    {}
+  );
+  assert.match(r.id as string, /^[0-9a-f-]{36}$/);
+});
+
+test("crypto: input fields preserved", () => {
+  const r = executeCrypto(
+    { data: { operation: "sha256", inputField: "x", outputField: "hash" } },
+    { extra: "keep" }
+  );
+  assert.equal(r.extra, "keep");
+});
+
+// ---------------------------------------------------------------------------
+// K. executeSort
+// ---------------------------------------------------------------------------
+
+test("sort: asc by primitive values", () => {
+  const r = executeSort(
+    { data: { arrayKey: "items", direction: "asc" } },
+    { items: [3, 1, 2] }
+  );
+  assert.deepEqual(r.items, [1, 2, 3]);
+});
+
+test("sort: desc by primitive values", () => {
+  const r = executeSort(
+    { data: { arrayKey: "items", direction: "desc" } },
+    { items: [3, 1, 2] }
+  );
+  assert.deepEqual(r.items, [3, 2, 1]);
+});
+
+test("sort: by sortField asc", () => {
+  const r = executeSort(
+    { data: { arrayKey: "items", sortField: "score", direction: "asc" } },
+    { items: [{ score: 30 }, { score: 10 }, { score: 20 }] }
+  );
+  assert.deepEqual((r.items as Array<{ score: number }>).map((x) => x.score), [10, 20, 30]);
+});
+
+test("sort: by sortField desc", () => {
+  const r = executeSort(
+    { data: { arrayKey: "items", sortField: "name", direction: "desc" } },
+    { items: [{ name: "Bob" }, { name: "Alice" }, { name: "Charlie" }] }
+  );
+  assert.deepEqual((r.items as Array<{ name: string }>).map((x) => x.name), ["Charlie", "Bob", "Alice"]);
+});
+
+test("sort: non-array passes through unchanged", () => {
+  const r = executeSort(
+    { data: { arrayKey: "items" } },
+    { items: "not-array" }
+  );
+  assert.equal(r.items, "not-array");
+});
+
+// ---------------------------------------------------------------------------
+// L. executeLimit
+// ---------------------------------------------------------------------------
+
+test("limit: keeps first N from start", () => {
+  const r = executeLimit(
+    { data: { arrayKey: "items", maxItems: 3, keepFrom: "start" } },
+    { items: [1, 2, 3, 4, 5] }
+  );
+  assert.deepEqual(r.items, [1, 2, 3]);
+});
+
+test("limit: keeps last N from end", () => {
+  const r = executeLimit(
+    { data: { arrayKey: "items", maxItems: 2, keepFrom: "end" } },
+    { items: [1, 2, 3, 4, 5] }
+  );
+  assert.deepEqual(r.items, [4, 5]);
+});
+
+test("limit: maxItems larger than array keeps all", () => {
+  const r = executeLimit(
+    { data: { arrayKey: "items", maxItems: 100 } },
+    { items: [1, 2] }
+  );
+  assert.deepEqual(r.items, [1, 2]);
+});
+
+test("limit: maxItems=0 returns empty", () => {
+  const r = executeLimit(
+    { data: { arrayKey: "items", maxItems: 0 } },
+    { items: [1, 2, 3] }
+  );
+  assert.deepEqual(r.items, []);
+});
+
+test("limit: non-array passes through unchanged", () => {
+  const r = executeLimit(
+    { data: { arrayKey: "items", maxItems: 2 } },
+    { items: "not-array" }
+  );
+  assert.equal(r.items, "not-array");
+});
+
+// ---------------------------------------------------------------------------
+// M. executeDeduplicate
+// ---------------------------------------------------------------------------
+
+test("deduplicate: removeSubsequent keeps first occurrence", () => {
+  const r = executeDeduplicate(
+    { data: { arrayKey: "items", strategy: "removeSubsequent" } },
+    { items: [1, 2, 1, 3, 2] }
+  );
+  assert.deepEqual(r.items, [1, 2, 3]);
+});
+
+test("deduplicate: keepLast keeps last occurrence", () => {
+  const r = executeDeduplicate(
+    { data: { arrayKey: "items", dedupeField: "id", strategy: "keepLast" } },
+    { items: [{ id: 1, v: "a" }, { id: 2, v: "b" }, { id: 1, v: "c" }] }
+  );
+  const items = r.items as Array<{ id: number; v: string }>;
+  const item1 = items.find((x) => x.id === 1);
+  assert.equal(item1?.v, "c");
+});
+
+test("deduplicate: by dedupeField", () => {
+  const r = executeDeduplicate(
+    { data: { arrayKey: "items", dedupeField: "email", strategy: "removeSubsequent" } },
+    { items: [{ email: "a@b.com" }, { email: "c@d.com" }, { email: "a@b.com" }] }
+  );
+  assert.equal((r.items as unknown[]).length, 2);
+});
+
+test("deduplicate: no duplicates → same array length", () => {
+  const r = executeDeduplicate(
+    { data: { arrayKey: "items" } },
+    { items: [1, 2, 3] }
+  );
+  assert.equal((r.items as unknown[]).length, 3);
+});
+
+// ---------------------------------------------------------------------------
+// N. executeRenameKeys
+// ---------------------------------------------------------------------------
+
+test("renameKeys: renames a top-level key", () => {
+  const r = executeRenameKeys(
+    { data: { mappings: [{ from: "old", to: "new" }] } },
+    { old: "value" }
+  );
+  assert.equal(r.new, "value");
+  assert.equal(r.old, undefined);
+});
+
+test("renameKeys: removeOldKeys=false keeps original key", () => {
+  const r = executeRenameKeys(
+    { data: { mappings: [{ from: "src", to: "dst" }], removeOldKeys: false } },
+    { src: "data" }
+  );
+  assert.equal(r.dst, "data");
+  assert.equal(r.src, "data");
+});
+
+test("renameKeys: unmapped keys preserved", () => {
+  const r = executeRenameKeys(
+    { data: { mappings: [{ from: "a", to: "b" }] } },
+    { a: "1", c: "3" }
+  );
+  assert.equal(r.b, "1");
+  assert.equal(r.c, "3");
+});
+
+test("renameKeys: from=to mapping is a no-op (skipped)", () => {
+  const r = executeRenameKeys(
+    { data: { mappings: [{ from: "x", to: "x" }] } },
+    { x: "keep" }
+  );
+  assert.equal(r.x, "keep");
+});
+
+test("renameKeys: missing source key results in no change", () => {
+  const r = executeRenameKeys(
+    { data: { mappings: [{ from: "missing", to: "target" }] } },
+    { unrelated: "data" }
+  );
+  assert.equal(r.target, undefined);
+  assert.equal(r.unrelated, "data");
 });
