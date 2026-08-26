@@ -157,6 +157,8 @@ export function EditorPage() {
   const [executing, setExecuting] = useState(false);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
+  const [nodeOutputs, setNodeOutputs] = useState<Record<string, unknown>>({});
+  const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({});
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
@@ -279,13 +281,15 @@ export function EditorPage() {
     const socket = io("http://localhost:4000", { auth: { token } });
     socketRef.current = socket;
 
-    socket.on("telemetry", (event: { type: string; nodeId?: string; executionId: string }) => {
+    socket.on("telemetry", (event: { type: string; nodeId?: string; executionId: string; output?: unknown; error?: string }) => {
       if (event.type === "node-started" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "running" }));
       } else if (event.type === "node-finished" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "success" }));
+        if (event.output !== undefined) setNodeOutputs((prev) => ({ ...prev, [event.nodeId!]: event.output }));
       } else if (event.type === "node-error" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "error" }));
+        if (event.error) setNodeErrors((prev) => ({ ...prev, [event.nodeId!]: event.error! }));
       } else if (event.type === "node-skipped" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "skipped" }));
       } else if (event.type === "execution-failed") {
@@ -404,6 +408,8 @@ export function EditorPage() {
   async function execute() {
     await save();
     setNodeStatuses({});
+    setNodeOutputs({});
+    setNodeErrors({});
     setNodeLogs([]);
     setExecuting(true);
     setExecutionId(null);
@@ -883,7 +889,13 @@ export function EditorPage() {
         )}
       </div>
 
-      <ExecutionPanel nodeStatuses={nodeStatuses} executionId={executionId} />
+      <ExecutionPanel
+        nodeStatuses={nodeStatuses}
+        nodeOutputs={nodeOutputs}
+        nodeErrors={nodeErrors}
+        executionId={executionId}
+        nodes={nodes.map((n) => ({ id: n.id, label: n.data?.label as string | undefined, nodeType: (n.data?.nodeType || n.type) as string | undefined }))}
+      />
 
       {showDreamGenerator && (
         <DreamGenerator
