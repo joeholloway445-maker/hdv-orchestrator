@@ -309,6 +309,104 @@ const TEMPLATES = [
       { id: "e4", source: "n3", target: "n5", sourceHandle: "error" },
     ],
   },
+
+  // ─── HDV Big Five Templates ───────────────────────────────────────────────
+  {
+    id: "hdv-secure-api-gateway",
+    name: "HDV: Secure API Gateway",
+    description: "Production-grade API endpoint: HOPE authenticates the JWT, KNOLL validates the payload for security violations, then the request passes to your business logic.",
+    tags: ["hdv", "hope", "knoll", "security", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "API Webhook", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "hope", position: { x: 280, y: 200 }, data: { label: "HOPE Auth", nodeType: "hope", allowAnon: false, requiredRole: "", token: "{{$input.headers.authorization}}" } },
+      { id: "n3", type: "knoll", position: { x: 500, y: 200 }, data: { label: "KNOLL Security", nodeType: "knoll", maxPayloadKb: "512", checkSsrf: true, checkEntropy: false } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Authorized Response", nodeType: "respond", statusCode: "200", responseBody: '{"ok": true, "userId": "{{$input.hopeUserId}}", "role": "{{$input.hopeRole}}"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "hdv-apex-moe-ai",
+    name: "HDV: APEX Mixture-of-Experts AI",
+    description: "Routes an AI task to the optimal Claude model via APEX MoE routing. Includes HOPE auth and KNOLL security gate. Replace the intent and category to match your use case.",
+    tags: ["hdv", "apex", "hope", "knoll", "ai", "moe"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "AI Request", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "hope", position: { x: 280, y: 200 }, data: { label: "HOPE Auth", nodeType: "hope", allowAnon: false, token: "{{$input.headers.authorization}}" } },
+      { id: "n3", type: "knoll", position: { x: 500, y: 200 }, data: { label: "KNOLL Gate", nodeType: "knoll", maxPayloadKb: "256", checkSsrf: true, checkEntropy: true } },
+      { id: "n4", type: "apex", position: { x: 720, y: 200 }, data: { label: "APEX Router", nodeType: "apex", intent: "{{$input.body.message}}", category: "general", budgetTier: "medium" } },
+      { id: "n5", type: "respond", position: { x: 940, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: '{"response": "{{$input.apexResponseText}}", "model": "{{$input.apexModel}}", "category": "{{$input.apexCategory}}"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n4", target: "n5" },
+    ],
+  },
+  {
+    id: "hdv-dream-simulate-score",
+    name: "HDV: DREAM Simulate & Score",
+    description: "Receives a workflow definition via webhook, runs DREAM simulation (dry-run without side effects), and scores its security and quality posture.",
+    tags: ["hdv", "dream", "simulate", "score", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Workflow Spec In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "knoll", position: { x: 280, y: 200 }, data: { label: "KNOLL Gate", nodeType: "knoll", maxPayloadKb: "1024", checkSsrf: true } },
+      { id: "n3", type: "dream", position: { x: 500, y: 200 }, data: { label: "DREAM Simulate", nodeType: "dream", mode: "simulate" } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "hdv-vision-sub-trigger",
+    name: "HDV: VISION Sub-Workflow Trigger",
+    description: "Authenticated request triggers a named sub-workflow by ID via the VISION automation node. Use this to fan out to specialised workflows.",
+    tags: ["hdv", "vision", "hope", "knoll", "sub-workflow"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Trigger In", nodeType: "webhookTrigger", webhookId: "auto-replace" } },
+      { id: "n2", type: "hope", position: { x: 280, y: 200 }, data: { label: "HOPE Auth", nodeType: "hope", allowAnon: false, token: "{{$input.headers.authorization}}" } },
+      { id: "n3", type: "knoll", position: { x: 500, y: 200 }, data: { label: "KNOLL Gate", nodeType: "knoll", maxPayloadKb: "256", checkSsrf: true } },
+      { id: "n4", type: "vision", position: { x: 720, y: 200 }, data: { label: "VISION Trigger", nodeType: "vision", visionMode: "trigger", workflowId: "REPLACE_WITH_WORKFLOW_ID", intent: "{{$input.body.intent}}", triggerData: "{{$input.body}}" } },
+      { id: "n5", type: "respond", position: { x: 940, y: 200 }, data: { label: "Accepted", nodeType: "respond", statusCode: "202", responseBody: '{"accepted": true, "visionStatus": "{{$input.visionStatus}}"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n4", target: "n5" },
+    ],
+  },
+  {
+    id: "hdv-full-stack",
+    name: "HDV: Full Stack — All Five Agents",
+    description: "Canonical HDV pipeline: HOPE authenticates, KNOLL secures, APEX routes the AI task, DREAM scores the result, VISION triggers a follow-on workflow.",
+    tags: ["hdv", "hope", "knoll", "apex", "dream", "vision", "full-stack"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 300 }, data: { label: "Incoming Request", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "hope", position: { x: 260, y: 300 }, data: { label: "HOPE: Auth Gate", nodeType: "hope", allowAnon: false, token: "{{$input.headers.authorization}}" } },
+      { id: "n3", type: "knoll", position: { x: 460, y: 300 }, data: { label: "KNOLL: Security", nodeType: "knoll", maxPayloadKb: "512", checkSsrf: true, checkEntropy: true } },
+      { id: "n4", type: "apex", position: { x: 660, y: 300 }, data: { label: "APEX: MoE Route", nodeType: "apex", intent: "{{$input.body.task}}", category: "general", budgetTier: "medium" } },
+      { id: "n5", type: "dream", position: { x: 860, y: 200 }, data: { label: "DREAM: Score", nodeType: "dream", mode: "score" } },
+      { id: "n6", type: "vision", position: { x: 860, y: 400 }, data: { label: "VISION: Follow-up", nodeType: "vision", visionMode: "noop" } },
+      { id: "n7", type: "respond", position: { x: 1060, y: 300 }, data: { label: "Final Response", nodeType: "respond", statusCode: "200", responseBody: '{"ok": true, "model": "{{$input.apexModel}}", "userId": "{{$input.hopeUserId}}"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n4", target: "n5" },
+      { id: "e5", source: "n4", target: "n6" },
+      { id: "e6", source: "n5", target: "n7" },
+      { id: "e7", source: "n6", target: "n7" },
+    ],
+  },
 ];
 
 // GET /templates — public list
