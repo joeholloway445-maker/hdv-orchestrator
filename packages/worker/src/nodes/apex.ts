@@ -6,8 +6,8 @@
  *   - Cost envelope (budget_tier: low | medium | high)
  *   - Latency preference (prefer_speed: true | false)
  *
- * The node calls the APEX MoE endpoint (APEX_BASE_URL) or falls back to a
- * built-in heuristic router when the endpoint is unavailable.
+ * Uses any OpenAI-compatible inference endpoint (Ollama, vLLM, LM Studio, etc.)
+ * configured via AI_BASE_URL + AI_MODEL env vars. No paid API required.
  */
 import { interpolate as _interpolate } from "../lib/expr";
 
@@ -20,33 +20,42 @@ function interpolate(template: string, data: unknown): string {
   return r !== undefined && r !== null ? String(r) : "";
 }
 
-/** Hard-coded MoE heuristic when APEX_BASE_URL is not configured. */
+interface OAIResponse {
+  choices: Array<{ message: { content: string } }>;
+  usage?: Record<string, unknown>;
+}
+
+/** Hard-coded MoE heuristic — maps task intent to an open model name. */
 function heuristicRoute(intent: string, category: string, budgetTier: string): string {
+  const defaultModel = process.env.AI_MODEL || "llama3.2";
+  const fastModel = process.env.AI_MODEL_FAST || process.env.AI_MODEL || "llama3.2";
+  const powerModel = process.env.AI_MODEL_POWER || process.env.AI_MODEL || "llama3.2";
+
   const low = budgetTier === "low";
   const high = budgetTier === "high";
+
   switch (category) {
     case "security":
     case "audit":
-      return high ? "claude-opus-5" : "claude-sonnet-5";
+      return high ? powerModel : defaultModel;
     case "code":
     case "analysis":
-      return low ? "claude-haiku-4-5-20251001" : high ? "claude-opus-5" : "claude-sonnet-5";
+      return low ? fastModel : high ? powerModel : defaultModel;
     case "creative":
     case "simulation":
-      return high ? "claude-fable-5" : "claude-sonnet-5";
+      return high ? powerModel : defaultModel;
     case "vision":
     case "multimodal":
-      return "claude-sonnet-5";
+      return process.env.AI_MODEL_VISION || defaultModel;
     case "chat":
     case "support":
-      return low ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
+      return low ? fastModel : defaultModel;
     default: {
-      // Keyword sniffing on intent
       const lower = intent.toLowerCase();
-      if (lower.includes("secur") || lower.includes("audit") || lower.includes("knoll")) return "claude-opus-5";
-      if (lower.includes("dream") || lower.includes("simulat") || lower.includes("creat")) return "claude-fable-5";
-      if (lower.includes("cod") || lower.includes("debug") || lower.includes("refactor")) return "claude-sonnet-5";
-      return low ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
+      if (lower.includes("secur") || lower.includes("audit") || lower.includes("knoll")) return powerModel;
+      if (lower.includes("dream") || lower.includes("simulat") || lower.includes("creat")) return defaultModel;
+      if (lower.includes("cod") || lower.includes("debug") || lower.includes("refactor")) return defaultModel;
+      return low ? fastModel : defaultModel;
     }
   }
 }
@@ -104,25 +113,28 @@ export async function executeApexDispatch(
     routedLocally = true;
   }
 
-  // Execute with chosen model via Anthropic API
-  const apiKey = String(node.data?.apiKey || process.env.ANTHROPIC_API_KEY || "");
-  if (!apiKey) throw new Error("APEX node: no API key (set ANTHROPIC_API_KEY or apiKey in node)");
+  // Execute via OpenAI-compatible inference endpoint
+  const baseUrl = String(
+    node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434"
+  ).replace(/\/$/, "");
+  const apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
 
-  const body: Record<string, unknown> = {
-    model: chosenModel,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: intent }],
-  };
-  if (systemPrompt) body.system = systemPrompt;
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+  messages.push({ role: "user", content: intent });
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: chosenModel,
+      messages,
+      max_tokens: maxTokens,
+      stream: false,
+    }),
   });
 
   if (!resp.ok) {
@@ -130,11 +142,8 @@ export async function executeApexDispatch(
     throw new Error(`APEX node: model API error ${resp.status} — ${errText}`);
   }
 
-  const result = (await resp.json()) as {
-    content: Array<{ type: string; text: string }>;
-    usage?: unknown;
-  };
-  const text = result.content?.find((c) => c.type === "text")?.text ?? "";
+  const result = (await resp.json()) as OAIResponse;
+  const text = result.choices?.[0]?.message?.content ?? "";
 
   let parsed: unknown = text;
   try { parsed = JSON.parse(text); } catch {}
@@ -147,6 +156,6 @@ export async function executeApexDispatch(
     apexResponseText: text,
     apexResponseParsed: parsed,
     apexRoutedLocally: routedLocally,
-    apexUsage: (result as Record<string, unknown>).usage,
+    apexUsage: (result as unknown as Record<string, unknown>).usage,
   };
 }

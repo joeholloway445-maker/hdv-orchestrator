@@ -5,7 +5,7 @@
  *   1. Simulate a sequence of node types with synthetic data, returning what
  *      the real execution would produce without side effects.
  *   2. Generate a workflow plan (nodes + edges JSON) from a natural-language
- *      intent using the Anthropic API.
+ *      intent using any OpenAI-compatible inference endpoint.
  *   3. Score an existing workflow for completeness, error-handling coverage,
  *      and estimated cost.
  *
@@ -14,6 +14,9 @@
  * replaced with a safe stub that returns { simulated: true, nodeType }.
  */
 import { interpolate as _interpolate } from "../lib/expr";
+import { ScenarioBank } from "../hdv/scenario_bank.js";
+
+const scenarioBank = new ScenarioBank();
 
 interface NodeDef {
   data: Record<string, unknown>;
@@ -22,6 +25,10 @@ interface NodeDef {
 function interpolate(template: string, data: unknown): string {
   const r = _interpolate(template, data as Record<string, unknown>);
   return r !== undefined && r !== null ? String(r) : "";
+}
+
+interface OAIResponse {
+  choices: Array<{ message: { content: string } }>;
 }
 
 const SIDE_EFFECTFUL = new Set([
@@ -90,11 +97,9 @@ function simulateDAG(
       output = { ...$input, simulated: true, simulatedNodeType: nodeType };
       simulated = true;
     } else if (SAFE_PASSTHROUGH.has(nodeType)) {
-      // Safe to pass through as-is for simulation
       output = { ...$input, _dreamSimulated: true };
       simulated = false;
     } else if (nodeType === "ai" || nodeType === "apex") {
-      // Return synthetic AI output
       output = {
         ...$input,
         aiText: `[DREAM simulation — ${nodeType} node would call ${node.data?.model || "the AI model"} here]`,
@@ -120,7 +125,9 @@ function simulateDAG(
 
 async function generateWorkflowPlan(
   intent: string,
+  baseUrl: string,
   apiKey: string,
+  model: string,
 ): Promise<{ nodes: unknown[]; edges: unknown[]; description: string }> {
   const systemPrompt = `You are DREAM, the HDV workflow architect. Generate a valid n8n-style workflow JSON for the given intent.
 Return ONLY a JSON object with this exact structure:
@@ -132,18 +139,20 @@ Return ONLY a JSON object with this exact structure:
 Available node types: webhookTrigger, httpRequest, ai, apex, knoll, code, set, filter, ifBranch, switch, email, slack, database, memoryRead, memoryWrite, aggregate, transform, datetime, validate, respond, stopError, noOp.
 Keep it minimal — 3-7 nodes. Each node must have a unique id starting with "n".`;
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-5",
+      model,
       max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: "user", content: intent }],
+      stream: false,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: intent },
+      ],
     }),
   });
 
@@ -152,8 +161,8 @@ Keep it minimal — 3-7 nodes. Each node must have a unique id starting with "n"
     throw new Error(`DREAM plan generation error ${resp.status} — ${errText}`);
   }
 
-  const result = (await resp.json()) as { content: Array<{ type: string; text: string }> };
-  const text = result.content?.find((c) => c.type === "text")?.text ?? "{}";
+  const result = (await resp.json()) as OAIResponse;
+  const text = result.choices?.[0]?.message?.content ?? "{}";
 
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -190,7 +199,7 @@ function scoreWorkflow(nodes: SimNode[], edges: SimEdge[]): Record<string, unkno
     sideEffectCount,
     nodeCount: nodes.length,
     edgeCount: edges.length,
-    estimatedCostUsd: sideEffectCount * 0.001 + nodeTypes.filter((t) => t === "ai" || t === "apex").length * 0.01,
+    estimatedCostUsd: 0, // free with local inference
   };
 }
 
@@ -200,11 +209,25 @@ export async function executeDream(
 ): Promise<Record<string, unknown>> {
   const mode = String(node.data?.mode || "simulate");
 
+  if (mode === "scenario") {
+    // List or specialize from the scenario bank
+    const scenarioId = String(node.data?.scenarioId || "");
+    if (!scenarioId) {
+      return { ...$input, dreamMode: "scenario", dreamScenarios: scenarioBank.list() };
+    }
+    const context: Record<string, unknown> = (node.data?.scenarioContext ?? {}) as Record<string, unknown>;
+    const specialized = scenarioBank.specialize(scenarioId, context);
+    return { ...$input, dreamMode: "scenario", dreamScenario: specialized };
+  }
+
   if (mode === "generate") {
     const intent = node.data?.intent ? interpolate(String(node.data.intent), $input) : JSON.stringify($input);
-    const apiKey = String(node.data?.apiKey || process.env.ANTHROPIC_API_KEY || "");
-    if (!apiKey) throw new Error("DREAM generate: no API key (set ANTHROPIC_API_KEY or apiKey in node)");
-    const plan = await generateWorkflowPlan(intent, apiKey);
+    const baseUrl = String(
+      node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434"
+    ).replace(/\/$/, "");
+    const apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+    const model = String(node.data?.model || process.env.AI_MODEL || "llama3.2");
+    const plan = await generateWorkflowPlan(intent, baseUrl, apiKey, model);
     return { ...$input, dreamMode: "generate", dreamPlan: plan };
   }
 
