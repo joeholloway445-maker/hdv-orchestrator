@@ -4,7 +4,9 @@
  * Covers:
  *  A. executeValidate — field rules: required, type, length, pattern, numeric range, flag mode
  *  B. executeFilter   — operators: equals/notEquals/contains/gt/lt/exists, AND/OR combine
- *  C. interpolate     — $json, $input, $vars, $now, $timestamp, single vs multi expression
+ *  C. interpolate     — $json, $input, $vars, $now, $timestamp, single vs multi expression,
+ *                       array index access with bracket notation
+ *  D. executeLoop     — $item.index / $item.count context, parallel mode
  *
  * Run: node --require ts-node/register --test tests/nodes.test.ts
  */
@@ -14,6 +16,7 @@ import assert from "node:assert/strict";
 import { executeValidate } from "../packages/worker/src/nodes/validate";
 import { executeFilter }   from "../packages/worker/src/nodes/filter";
 import { interpolate }     from "../packages/worker/src/lib/expr";
+import { executeLoop }     from "../packages/worker/src/nodes/loop";
 
 // ---------------------------------------------------------------------------
 // A. executeValidate
@@ -315,4 +318,83 @@ test("interpolate: nested dot path access", () => {
 test("interpolate: non-string template returned as-is", () => {
   const result = interpolate(42 as unknown as string, {});
   assert.equal(result, 42);
+});
+
+test("interpolate: bracket index [0] accesses first array element", () => {
+  const result = interpolate("{{ $input.items[0] }}", { items: ["alpha", "beta"] });
+  assert.equal(result, "alpha");
+});
+
+test("interpolate: bracket index [-1] accesses last array element", () => {
+  const result = interpolate("{{ $input.items[-1] }}", { items: ["a", "b", "c"] });
+  assert.equal(result, "c");
+});
+
+test("interpolate: bracket index with nested field", () => {
+  const result = interpolate("{{ $input.users[1].name }}", { users: [{ name: "Alice" }, { name: "Bob" }] });
+  assert.equal(result, "Bob");
+});
+
+test("interpolate: out-of-bounds bracket index returns undefined in multi-expr context", () => {
+  const result = interpolate("val: {{ $input.items[99] }}", { items: [1, 2] });
+  assert.equal(result, "val: ");
+});
+
+// ---------------------------------------------------------------------------
+// D. executeLoop — $item context
+// ---------------------------------------------------------------------------
+
+test("loop: items pass through unchanged when no mappings", async () => {
+  const result = await executeLoop(
+    { data: { arrayKey: "items" } },
+    { items: [{ a: 1 }, { a: 2 }] }
+  );
+  const items = result.items as Array<Record<string, unknown>>;
+  assert.equal(items.length, 2);
+  assert.equal(items[0].a, 1);
+  assert.equal(items[1].a, 2);
+});
+
+test("loop: $item.index is injected into each item", async () => {
+  const result = await executeLoop(
+    { data: { arrayKey: "items" } },
+    { items: ["x", "y", "z"] }
+  );
+  const items = result.items as Array<{ $item: { index: number; count: number; isFirst: boolean; isLast: boolean } }>;
+  assert.equal(items[0].$item.index, 0);
+  assert.equal(items[0].$item.isFirst, true);
+  assert.equal(items[0].$item.isLast, false);
+  assert.equal(items[2].$item.index, 2);
+  assert.equal(items[2].$item.isLast, true);
+  assert.equal(items[0].$item.count, 3);
+});
+
+test("loop: mappings can reference $item.index", async () => {
+  const result = await executeLoop(
+    { data: { arrayKey: "items", mappings: [{ key: "position", value: "{{ $item.index }}" }] } },
+    { items: [{ v: "a" }, { v: "b" }] }
+  );
+  const items = result.items as Array<{ position: number }>;
+  assert.equal(items[0].position, 0);
+  assert.equal(items[1].position, 1);
+});
+
+test("loop: parallel mode produces same results as serial", async () => {
+  const serial = await executeLoop(
+    { data: { arrayKey: "items" } },
+    { items: [1, 2, 3] }
+  );
+  const parallel = await executeLoop(
+    { data: { arrayKey: "items", parallel: true } },
+    { items: [1, 2, 3] }
+  );
+  assert.deepEqual(serial.items, parallel.items);
+});
+
+test("loop: _loopCount reflects processed count", async () => {
+  const result = await executeLoop(
+    { data: { arrayKey: "items" } },
+    { items: [1, 2, 3, 4, 5] }
+  );
+  assert.equal(result._loopCount, 5);
 });
