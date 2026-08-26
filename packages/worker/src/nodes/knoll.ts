@@ -62,12 +62,13 @@ function findSsrfUrls(obj: unknown): string[] {
   return hits;
 }
 
-function findForbiddenKeys(obj: unknown): string[] {
+function findForbiddenKeys(obj: unknown, extraPatterns: RegExp[] = []): string[] {
+  const patterns = [...FORBIDDEN_KEY_PATTERNS, ...extraPatterns];
   const hits: string[] = [];
   function walk(v: unknown) {
     if (v && typeof v === "object") {
       for (const key of Object.keys(v as Record<string, unknown>)) {
-        if (FORBIDDEN_KEY_PATTERNS.some((p) => p.test(key))) hits.push(key);
+        if (patterns.some((p) => p.test(key))) hits.push(key);
         walk((v as Record<string, unknown>)[key]);
       }
     }
@@ -84,10 +85,19 @@ export async function executeKnoll(
   const checkPayloadSize = node.data?.checkPayloadSize !== false;
   const checkForbiddenKeys = node.data?.checkForbiddenKeys !== false;
   const checkSsrf = node.data?.checkSsrf !== false;
-  const checkEntropyScore = node.data?.checkEntropyScore === true;
+  // Support both checkEntropyScore (API simulate.ts) and checkEntropy (NodeConfigPanel)
+  const checkEntropyScore = node.data?.checkEntropyScore === true || node.data?.checkEntropy === true;
   const maxPayloadKb = parseInt(String(node.data?.maxPayloadKb || "512"), 10);
-  const entropyThreshold = parseFloat(String(node.data?.entropyThreshold || "5.5"));
+  // Support both entropyThreshold and maxEntropyBits field names
+  const entropyThreshold = parseFloat(String(node.data?.entropyThreshold || node.data?.maxEntropyBits || "5.5"));
   const entropyMinLen = parseInt(String(node.data?.entropyMinLen || "64"), 10);
+
+  // Additional forbidden key patterns from node config (comma-separated)
+  const extraForbidKeys = String(node.data?.forbidKeys || "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .map((k) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
 
   const violations: string[] = [];
 
@@ -101,7 +111,7 @@ export async function executeKnoll(
 
   // 2. Forbidden key check
   if (checkForbiddenKeys) {
-    const forbidden = findForbiddenKeys($input);
+    const forbidden = findForbiddenKeys($input, extraForbidKeys);
     if (forbidden.length > 0) {
       violations.push(`Forbidden keys detected: ${forbidden.slice(0, 5).join(", ")}`);
     }
