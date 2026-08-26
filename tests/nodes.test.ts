@@ -2,21 +2,29 @@
  * tests/nodes.test.ts — Unit tests for pure worker node functions.
  *
  * Covers:
- *  A. executeValidate — field rules: required, type, length, pattern, numeric range, flag mode
- *  B. executeFilter   — operators: equals/notEquals/contains/gt/lt/exists, AND/OR combine
- *  C. interpolate     — $json, $input, $vars, $now, $timestamp, single vs multi expression,
- *                       array index access with bracket notation
- *  D. executeLoop     — $item.index / $item.count context, parallel mode
+ *  A. executeValidate  — field rules: required, type, length, pattern, numeric range, flag mode
+ *  B. executeFilter    — operators: equals/notEquals/contains/gt/lt/exists, AND/OR combine
+ *  C. interpolate      — $json, $input, $vars, $now, $timestamp, single vs multi expression,
+ *                        array index access with bracket notation
+ *  D. executeLoop      — $item.index / $item.count context, parallel mode
+ *  E. executeIfBranch  — AND/OR conditions, all operators, _branch output
+ *  F. executeSet       — mappings with interpolation, passthrough
+ *  G. executeSwitch    — matched case, default case, nested field
+ *  H. executeAggregate — arrayKey, outputKey, flatten, count
  *
  * Run: node --require ts-node/register --test tests/nodes.test.ts
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { executeValidate } from "../packages/worker/src/nodes/validate";
-import { executeFilter }   from "../packages/worker/src/nodes/filter";
-import { interpolate }     from "../packages/worker/src/lib/expr";
-import { executeLoop }     from "../packages/worker/src/nodes/loop";
+import { executeValidate }  from "../packages/worker/src/nodes/validate";
+import { executeFilter }    from "../packages/worker/src/nodes/filter";
+import { interpolate }      from "../packages/worker/src/lib/expr";
+import { executeLoop }      from "../packages/worker/src/nodes/loop";
+import { executeIfBranch }  from "../packages/worker/src/nodes/ifBranch";
+import { executeSet }       from "../packages/worker/src/nodes/set";
+import { executeSwitch }    from "../packages/worker/src/nodes/switch";
+import { executeAggregate } from "../packages/worker/src/nodes/aggregate";
 
 // ---------------------------------------------------------------------------
 // A. executeValidate
@@ -397,4 +405,317 @@ test("loop: _loopCount reflects processed count", async () => {
     { items: [1, 2, 3, 4, 5] }
   );
   assert.equal(result._loopCount, 5);
+});
+
+// ---------------------------------------------------------------------------
+// E. executeIfBranch
+// ---------------------------------------------------------------------------
+
+function ifNode(conditions: object[], combineMode = "AND") {
+  return { data: { conditions, combineMode } };
+}
+
+test("ifBranch: equals → true branch", () => {
+  const r = executeIfBranch(ifNode([{ field: "status", operator: "equals", value: "ok" }]), { status: "ok" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: equals → false branch when value differs", () => {
+  const r = executeIfBranch(ifNode([{ field: "status", operator: "equals", value: "ok" }]), { status: "fail" });
+  assert.equal(r._branch, "false");
+});
+
+test("ifBranch: notEquals → true when values differ", () => {
+  const r = executeIfBranch(ifNode([{ field: "role", operator: "notEquals", value: "admin" }]), { role: "user" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: gt → true when actual > expected", () => {
+  const r = executeIfBranch(ifNode([{ field: "score", operator: "gt", value: "50" }]), { score: 99 });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: lt → false when actual >= expected", () => {
+  const r = executeIfBranch(ifNode([{ field: "score", operator: "lt", value: "50" }]), { score: 50 });
+  assert.equal(r._branch, "false");
+});
+
+test("ifBranch: gte → true when equal", () => {
+  const r = executeIfBranch(ifNode([{ field: "n", operator: "gte", value: "10" }]), { n: 10 });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: lte → true when less than", () => {
+  const r = executeIfBranch(ifNode([{ field: "n", operator: "lte", value: "10" }]), { n: 5 });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: contains → true when substring present", () => {
+  const r = executeIfBranch(ifNode([{ field: "msg", operator: "contains", value: "error" }]), { msg: "fatal error occurred" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: startsWith → true", () => {
+  const r = executeIfBranch(ifNode([{ field: "url", operator: "startsWith", value: "https" }]), { url: "https://example.com" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: endsWith → true", () => {
+  const r = executeIfBranch(ifNode([{ field: "file", operator: "endsWith", value: ".json" }]), { file: "data.json" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: exists → true when field is present", () => {
+  const r = executeIfBranch(ifNode([{ field: "token", operator: "exists", value: "" }]), { token: "abc" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: notExists → true when field absent", () => {
+  const r = executeIfBranch(ifNode([{ field: "token", operator: "notExists", value: "" }]), {});
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: isTrue → true for boolean true", () => {
+  const r = executeIfBranch(ifNode([{ field: "active", operator: "isTrue", value: "" }]), { active: true });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: isFalse → true for boolean false", () => {
+  const r = executeIfBranch(ifNode([{ field: "active", operator: "isFalse", value: "" }]), { active: false });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: isEmpty → true for empty string", () => {
+  const r = executeIfBranch(ifNode([{ field: "name", operator: "isEmpty", value: "" }]), { name: "" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: isNotEmpty → true for non-empty string", () => {
+  const r = executeIfBranch(ifNode([{ field: "name", operator: "isNotEmpty", value: "" }]), { name: "Alice" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: matches regex → true", () => {
+  const r = executeIfBranch(ifNode([{ field: "code", operator: "matches", value: "^[A-Z]{3}$" }]), { code: "ABC" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: notMatches regex → true when no match", () => {
+  const r = executeIfBranch(ifNode([{ field: "code", operator: "notMatches", value: "^[0-9]+$" }]), { code: "ABC" });
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: AND — all must pass", () => {
+  const r = executeIfBranch(
+    ifNode([{ field: "a", operator: "equals", value: "1" }, { field: "b", operator: "equals", value: "2" }], "AND"),
+    { a: "1", b: "2" }
+  );
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: AND — one fails → false branch", () => {
+  const r = executeIfBranch(
+    ifNode([{ field: "a", operator: "equals", value: "1" }, { field: "b", operator: "equals", value: "2" }], "AND"),
+    { a: "1", b: "X" }
+  );
+  assert.equal(r._branch, "false");
+});
+
+test("ifBranch: OR — one passes → true branch", () => {
+  const r = executeIfBranch(
+    ifNode([{ field: "a", operator: "equals", value: "X" }, { field: "b", operator: "equals", value: "2" }], "OR"),
+    { a: "1", b: "2" }
+  );
+  assert.equal(r._branch, "true");
+});
+
+test("ifBranch: no conditions → false branch", () => {
+  const r = executeIfBranch({ data: { conditions: [], combineMode: "AND" } }, { x: 1 });
+  assert.equal(r._branch, "false");
+});
+
+test("ifBranch: input fields preserved in output", () => {
+  const r = executeIfBranch(ifNode([{ field: "x", operator: "equals", value: "1" }]), { x: "1", extra: "keep" });
+  assert.equal(r.extra, "keep");
+  assert.equal(r._branch, "true");
+});
+
+// ---------------------------------------------------------------------------
+// F. executeSet
+// ---------------------------------------------------------------------------
+
+test("set: maps a static value", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "greeting", value: "Hello" }] } },
+    {}
+  );
+  assert.equal(r.greeting, "Hello");
+});
+
+test("set: interpolates from $input", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "label", value: "User: {{ $input.name }}" }] } },
+    { name: "Alice" }
+  );
+  assert.equal(r.label, "User: Alice");
+});
+
+test("set: can overwrite existing fields", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "status", value: "active" }] } },
+    { status: "inactive" }
+  );
+  assert.equal(r.status, "active");
+});
+
+test("set: preserves unmapped fields from $input", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "x", value: "1" }] } },
+    { y: "original" }
+  );
+  assert.equal(r.y, "original");
+  assert.equal(r.x, "1");
+});
+
+test("set: multiple mappings all applied", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "a", value: "1" }, { key: "b", value: "2" }, { key: "c", value: "3" }] } },
+    {}
+  );
+  assert.equal(r.a, "1");
+  assert.equal(r.b, "2");
+  assert.equal(r.c, "3");
+});
+
+test("set: empty mappings → returns $input unchanged", () => {
+  const r = executeSet({ data: { mappings: [] } }, { foo: "bar" });
+  assert.equal(r.foo, "bar");
+});
+
+test("set: mapping can reference sibling field via $input", () => {
+  const r = executeSet(
+    { data: { mappings: [{ key: "doubled", value: "{{ $input.count }}" }] } },
+    { count: 7 }
+  );
+  assert.equal(r.doubled, 7);
+});
+
+// ---------------------------------------------------------------------------
+// G. executeSwitch
+// ---------------------------------------------------------------------------
+
+test("switch: matched case → correct output", () => {
+  const r = executeSwitch(
+    { data: { field: "env", cases: [{ value: "prod", output: "production" }, { value: "dev", output: "development" }], defaultOutput: "unknown" } },
+    { env: "prod" }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "production");
+});
+
+test("switch: no match → defaultOutput", () => {
+  const r = executeSwitch(
+    { data: { field: "env", cases: [{ value: "prod", output: "production" }], defaultOutput: "fallback" } },
+    { env: "staging" }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "fallback");
+});
+
+test("switch: second case matches", () => {
+  const r = executeSwitch(
+    { data: { field: "tier", cases: [{ value: "free", output: "basic" }, { value: "pro", output: "premium" }], defaultOutput: "unknown" } },
+    { tier: "pro" }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "premium");
+});
+
+test("switch: numeric field value matched as string", () => {
+  const r = executeSwitch(
+    { data: { field: "code", cases: [{ value: "200", output: "ok" }, { value: "404", output: "not_found" }], defaultOutput: "other" } },
+    { code: 404 }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "not_found");
+});
+
+test("switch: nested field via dot path", () => {
+  const r = executeSwitch(
+    { data: { field: "user.role", cases: [{ value: "admin", output: "full" }], defaultOutput: "limited" } },
+    { user: { role: "admin" } }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "full");
+});
+
+test("switch: empty cases always defaults", () => {
+  const r = executeSwitch(
+    { data: { field: "x", cases: [], defaultOutput: "none" } },
+    { x: "anything" }
+  ) as Record<string, unknown>;
+  assert.equal(r._switch, "none");
+});
+
+test("switch: input fields preserved", () => {
+  const r = executeSwitch(
+    { data: { field: "status", cases: [{ value: "on", output: "active" }], defaultOutput: "off" } },
+    { status: "on", extra: "keep" }
+  ) as Record<string, unknown>;
+  assert.equal(r.extra, "keep");
+  assert.equal(r._switch, "active");
+});
+
+// ---------------------------------------------------------------------------
+// H. executeAggregate
+// ---------------------------------------------------------------------------
+
+test("aggregate: collects items from arrayKey into outputKey", () => {
+  const r = executeAggregate(
+    { data: { arrayKey: "items", outputKey: "results" } },
+    { items: [1, 2, 3] }
+  );
+  assert.deepEqual(r.results, [1, 2, 3]);
+  assert.equal(r.count, 3);
+});
+
+test("aggregate: defaults arrayKey to items and outputKey to results", () => {
+  const r = executeAggregate({ data: {} }, { items: ["a", "b"] });
+  assert.deepEqual(r.results, ["a", "b"]);
+});
+
+test("aggregate: flatten=true merges nested arrays", () => {
+  const r = executeAggregate(
+    { data: { arrayKey: "batches", outputKey: "all", flatten: true } },
+    { batches: [[1, 2], [3, 4], [5]] }
+  );
+  assert.deepEqual(r.all, [1, 2, 3, 4, 5]);
+  assert.equal(r.count, 5);
+});
+
+test("aggregate: flatten=false keeps nested arrays intact", () => {
+  const r = executeAggregate(
+    { data: { arrayKey: "batches", outputKey: "all", flatten: false } },
+    { batches: [[1, 2], [3]] }
+  );
+  assert.deepEqual(r.all, [[1, 2], [3]]);
+  assert.equal(r.count, 2);
+});
+
+test("aggregate: empty array → count 0", () => {
+  const r = executeAggregate({ data: { arrayKey: "items", outputKey: "results" } }, { items: [] });
+  assert.equal(r.count, 0);
+  assert.deepEqual(r.results, []);
+});
+
+test("aggregate: falls back to $input.items when arrayKey not found", () => {
+  const r = executeAggregate(
+    { data: { arrayKey: "missing", outputKey: "out" } },
+    { items: [10, 20] }
+  );
+  assert.deepEqual(r.out, [10, 20]);
+});
+
+test("aggregate: input fields preserved alongside new outputKey", () => {
+  const r = executeAggregate(
+    { data: { arrayKey: "items", outputKey: "collected" } },
+    { items: [1], meta: "keep" }
+  );
+  assert.equal(r.meta, "keep");
+  assert.deepEqual(r.collected, [1]);
 });
