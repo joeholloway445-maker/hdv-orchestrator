@@ -127,6 +127,28 @@ export const SlackNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-purple-600" icon="💬" hasErrorOutput />
 );
 
+// ── HDV Big Five ────────────────────────────────────────────────────────────
+
+export const KnollNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-red-800" icon="🔒" hasErrorOutput />
+);
+
+export const ApexNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-purple-700" icon="⚡" hasErrorOutput />
+);
+
+export const DreamNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-indigo-800" icon="✦" />
+);
+
+export const VisionNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-cyan-800" icon="👁" />
+);
+
+export const HopeNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-green-800" icon="🛡" hasErrorOutput />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -174,4 +196,10 @@ export const nodeTypes = {
   database: DatabaseNode,
   slack: SlackNode,
   stickyNote: StickyNoteNode,
+  // HDV Big Five
+  knoll: KnollNode,
+  apex: ApexNode,
+  dream: DreamNode,
+  vision: VisionNode,
+  hope: HopeNode,
 };

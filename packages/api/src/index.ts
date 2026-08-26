@@ -15,6 +15,7 @@ import { variablesRouter } from "./routes/variables";
 import { tokensRouter } from "./routes/tokens";
 import { templatesRouter } from "./routes/templates";
 import { simulateRouter } from "./routes/simulate";
+import { schedulesRouter } from "./routes/schedules";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
@@ -70,6 +71,7 @@ app.use("/tokens", verifyToken, tokensRouter);
 app.use("/templates", verifyToken, templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);
+app.use("/schedules", verifyToken, schedulesRouter);
 
 app.get("/health", async (_req, res) => {
   const checks: Record<string, string> = {};

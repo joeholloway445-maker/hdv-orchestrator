@@ -166,13 +166,19 @@ router.post("/:id/versions/:versionId/restore", async (req: AuthRequest, res) =>
 
 // ── Execute ─────────────────────────────────────────────────────────────────
 
-router.post("/:id/execute", async (req: AuthRequest, res) => {
-  const workflow = await prisma.workflow.findFirst({
-    where: { id: req.params.id, userId: req.userId! },
-  });
+async function handleExecuteWorkflow(req: AuthRequest, res: import("express").Response) {
+  // Lookup by userId OR by shared API key (for VISION triggers from other workflows)
+  const apiKeyHeader = req.headers["authorization"]?.toString().replace(/^Bearer\s+/i, "");
+  const isVisionInternalKey = apiKeyHeader && apiKeyHeader === process.env.WORKFLOW_API_KEY;
+
+  const where = isVisionInternalKey
+    ? { id: req.params.id }
+    : { id: req.params.id, userId: req.userId! };
+
+  const workflow = await prisma.workflow.findFirst({ where });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
-  const triggerData = req.body.data || {};
+  const triggerData = req.body.triggerData || req.body.data || {};
   const execution = await prisma.execution.create({
     data: { workflowId: workflow.id, status: "PENDING", data: { triggerData } },
   });
@@ -183,8 +189,14 @@ router.post("/:id/execute", async (req: AuthRequest, res) => {
     triggerData,
   });
 
-  res.status(202).json(execution);
-});
+  return res.status(202).json({ ...execution, jobId: execution.id });
+}
+
+// Primary execute endpoint (called from Editor UI)
+router.post("/:id/execute", handleExecuteWorkflow);
+
+// /run alias — called by VISION node when triggering sub-workflows
+router.post("/:id/run", handleExecuteWorkflow);
 
 // ── Test Single Node ─────────────────────────────────────────────────────────
 
@@ -253,6 +265,67 @@ router.get("/:id/stats", async (req: AuthRequest, res) => {
     successRate: successRate !== null ? Math.round(successRate * 10) / 10 : null,
     avgDurationMs: avgDurationMs !== null ? Math.round(avgDurationMs) : null,
   });
+});
+
+// ── PATCH (partial update — used by Schedules page for active toggle) ─────────
+
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const allowed: Record<string, unknown> = {};
+  if (req.body.active !== undefined) allowed.active = Boolean(req.body.active);
+  if (req.body.name !== undefined) allowed.name = String(req.body.name);
+
+  const updated = await prisma.workflow.update({
+    where: { id: req.params.id },
+    data: allowed,
+  });
+  res.json(updated);
+});
+
+// ── Export / Import ────────────────────────────────────────────────────────────
+
+router.get("/:id/export", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const bundle = {
+    version: "1",
+    exportedAt: new Date().toISOString(),
+    workflow: {
+      name: workflow.name,
+      description: workflow.description,
+      tags: workflow.tags,
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+    },
+  };
+
+  res.setHeader("Content-Disposition", `attachment; filename="${workflow.name.replace(/[^a-z0-9_-]/gi, "_")}.json"`);
+  res.json(bundle);
+});
+
+router.post("/import", async (req: AuthRequest, res) => {
+  const { bundle } = req.body as { bundle: { workflow: { name: string; description?: string; tags?: string[]; nodes: unknown; edges: unknown } } };
+  if (!bundle?.workflow?.nodes) return res.status(400).json({ error: "Invalid workflow bundle — missing nodes" });
+
+  const wf = bundle.workflow;
+  const workflow = await prisma.workflow.create({
+    data: {
+      name: (wf.name || "Imported Workflow") + " (Import)",
+      userId: req.userId!,
+      nodes: wf.nodes as object[],
+      edges: wf.edges as object[],
+      description: wf.description || null,
+      tags: Array.isArray(wf.tags) ? wf.tags : [],
+    },
+  });
+  res.status(201).json(workflow);
 });
 
 export { router as workflowsRouter };

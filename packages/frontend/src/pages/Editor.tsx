@@ -19,6 +19,7 @@ import { useAuthStore } from "../store/auth";
 import { NodeSidebar } from "../components/NodeSidebar";
 import { NodeConfigPanel } from "../components/NodeConfigPanel";
 import { ExecutionPanel } from "../components/ExecutionPanel";
+import { DreamGenerator } from "../components/DreamGenerator";
 import { nodeTypes } from "../components/nodes/nodeTypes";
 
 interface NodeData {
@@ -108,6 +109,12 @@ export const NODE_TYPE_CONFIG = [
   { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic", category: "AI" },
   { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory", category: "AI" },
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory", category: "AI" },
+  // HDV Big Five
+  { type: "knoll", label: "KNOLL", color: "bg-red-800", description: "Security sentinel — blocks forbidden keys, SSRF, oversized payloads", category: "HDV" },
+  { type: "apex", label: "APEX", color: "bg-purple-700", description: "MoE router — routes tasks to optimal Claude model", category: "HDV" },
+  { type: "dream", label: "DREAM", color: "bg-indigo-800", description: "Simulation & creation — simulate, score, or generate workflows", category: "HDV" },
+  { type: "vision", label: "VISION", color: "bg-cyan-800", description: "Automation runtime — trigger or execute sub-workflows", category: "HDV" },
+  { type: "hope", label: "HOPE", color: "bg-green-800", description: "Auth gateway — validates user JWT and enriches context", category: "HDV" },
   // Workflows
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
@@ -150,6 +157,8 @@ export function EditorPage() {
   const [executing, setExecuting] = useState(false);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
+  const [nodeOutputs, setNodeOutputs] = useState<Record<string, unknown>>({});
+  const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({});
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
@@ -160,6 +169,14 @@ export function EditorPage() {
   const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
   const [quickAddSearch, setQuickAddSearch] = useState("");
   const [stats, setStats] = useState<{ total: number; successRate: number | null; avgDurationMs: number | null } | null>(null);
+  const [showDreamGenerator, setShowDreamGenerator] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [showSimulatePanel, setShowSimulatePanel] = useState(false);
+  const [simulateResult, setSimulateResult] = useState<{
+    trace: Array<{ nodeId: string; nodeType: string; simulated: boolean; output: Record<string, unknown> }>;
+    score: { score: number; grade: string; hasKnoll: boolean; hasApex: boolean; hasErrorHandling: boolean; hasOutputNode: boolean; recommendations: (string | null)[] };
+    summary: { totalNodes: number; simulatedNodes: number; realNodes: number };
+  } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -268,16 +285,19 @@ export function EditorPage() {
   }, [id]);
 
   useEffect(() => {
-    const socket = io("http://localhost:4000", { auth: { token } });
+    const wsUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+    const socket = io(wsUrl, { auth: { token } });
     socketRef.current = socket;
 
-    socket.on("telemetry", (event: { type: string; nodeId?: string; executionId: string }) => {
+    socket.on("telemetry", (event: { type: string; nodeId?: string; executionId: string; output?: unknown; error?: string }) => {
       if (event.type === "node-started" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "running" }));
       } else if (event.type === "node-finished" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "success" }));
+        if (event.output !== undefined) setNodeOutputs((prev) => ({ ...prev, [event.nodeId!]: event.output }));
       } else if (event.type === "node-error" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "error" }));
+        if (event.error) setNodeErrors((prev) => ({ ...prev, [event.nodeId!]: event.error! }));
       } else if (event.type === "node-skipped" && event.nodeId) {
         setNodeStatuses((prev) => ({ ...prev, [event.nodeId!]: "skipped" }));
       } else if (event.type === "execution-failed") {
@@ -396,6 +416,8 @@ export function EditorPage() {
   async function execute() {
     await save();
     setNodeStatuses({});
+    setNodeOutputs({});
+    setNodeErrors({});
     setNodeLogs([]);
     setExecuting(true);
     setExecutionId(null);
@@ -488,6 +510,32 @@ export function EditorPage() {
     input.click();
   }
 
+  function importGeneratedWorkflow(importedNodes: unknown[], importedEdges: unknown[]) {
+    const offset = { x: 100, y: 100 };
+    const typed = (importedNodes as Node<NodeData>[]).map((n) => ({
+      ...n,
+      position: { x: (n.position?.x ?? 0) + offset.x, y: (n.position?.y ?? 0) + offset.y },
+    }));
+    setNodes((prev) => [...prev, ...typed]);
+    setEdges((prev) => [...prev, ...(importedEdges as Edge[])]);
+    pushHistory([...nodes, ...typed], [...edges, ...(importedEdges as Edge[])]);
+  }
+
+  async function simulate() {
+    if (simulating) return;
+    setSimulating(true);
+    setSimulateResult(null);
+    try {
+      const { data } = await api.post("/simulate", { nodes, edges, triggerData: {} });
+      setSimulateResult(data as typeof simulateResult);
+      setShowSimulatePanel(true);
+    } catch {
+      // silent — simulate errors don't block real work
+    } finally {
+      setSimulating(false);
+    }
+  }
+
   function updateNodeData(nodeId: string, newData: Partial<NodeData>) {
     setNodes((nds) =>
       nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...newData } } : n))
@@ -574,6 +622,21 @@ export function EditorPage() {
             className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition"
           >
             Import
+          </button>
+          <button
+            onClick={() => setShowDreamGenerator(true)}
+            className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 rounded-lg text-xs transition font-medium"
+            title="Generate a workflow with DREAM AI"
+          >
+            ✦ Generate
+          </button>
+          <button
+            onClick={simulate}
+            disabled={simulating || nodes.length === 0}
+            className="px-3 py-1.5 bg-cyan-800 hover:bg-cyan-700 text-cyan-100 rounded-lg text-xs transition font-medium disabled:opacity-40"
+            title="DREAM dry-run — simulate without side effects"
+          >
+            {simulating ? "Simulating…" : "▷ Simulate"}
           </button>
           <button
             onClick={exportWorkflow}
@@ -857,7 +920,101 @@ export function EditorPage() {
         )}
       </div>
 
-      <ExecutionPanel nodeStatuses={nodeStatuses} executionId={executionId} />
+      <ExecutionPanel
+        nodeStatuses={nodeStatuses}
+        nodeOutputs={nodeOutputs}
+        nodeErrors={nodeErrors}
+        executionId={executionId}
+        nodes={nodes.map((n) => ({ id: n.id, label: n.data?.label as string | undefined, nodeType: (n.data?.nodeType || n.type) as string | undefined }))}
+      />
+
+      {showDreamGenerator && (
+        <DreamGenerator
+          onClose={() => setShowDreamGenerator(false)}
+          onImport={importGeneratedWorkflow}
+        />
+      )}
+
+      {showSimulatePanel && simulateResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-[680px] max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-700">
+              <div>
+                <h2 className="text-white font-bold text-base">DREAM Simulation</h2>
+                <p className="text-gray-400 text-xs mt-0.5">Dry-run — no side effects executed</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={`text-3xl font-bold ${simulateResult.score.grade === "A" ? "text-green-400" : simulateResult.score.grade === "B" ? "text-yellow-400" : simulateResult.score.grade === "C" ? "text-orange-400" : "text-red-400"}`}>
+                  {simulateResult.score.grade}
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold text-sm">{simulateResult.score.score}/100</div>
+                  <div className="text-gray-500 text-xs">security score</div>
+                </div>
+                <button onClick={() => setShowSimulatePanel(false)} className="text-gray-500 hover:text-white text-xl ml-2">×</button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+              {/* Score badges */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "KNOLL gate", ok: simulateResult.score.hasKnoll },
+                  { label: "APEX routing", ok: simulateResult.score.hasApex },
+                  { label: "Error handling", ok: simulateResult.score.hasErrorHandling },
+                  { label: "Output node", ok: simulateResult.score.hasOutputNode },
+                ].map(({ label, ok }) => (
+                  <span key={label} className={`text-xs px-2 py-1 rounded-full font-medium ${ok ? "bg-green-900/60 text-green-300" : "bg-gray-700 text-gray-500"}`}>
+                    {ok ? "✓" : "✗"} {label}
+                  </span>
+                ))}
+              </div>
+
+              {/* Recommendations */}
+              {simulateResult.score.recommendations.filter(Boolean).length > 0 && (
+                <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3">
+                  <p className="text-yellow-400 text-xs font-semibold mb-1">Recommendations</p>
+                  {simulateResult.score.recommendations.filter(Boolean).map((r, i) => (
+                    <p key={i} className="text-yellow-300/80 text-xs leading-relaxed">• {r}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Trace */}
+              <div>
+                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">
+                  Execution Trace — {simulateResult.summary.totalNodes} nodes ({simulateResult.summary.simulatedNodes} simulated, {simulateResult.summary.realNodes} pass-through)
+                </p>
+                <div className="space-y-1.5">
+                  {simulateResult.trace.map((t, i) => {
+                    const nodeLabel = nodes.find((n) => n.id === t.nodeId)?.data?.label || t.nodeType;
+                    return (
+                      <div key={t.nodeId} className="bg-gray-750/50 border border-gray-700/50 rounded-lg px-3 py-2 flex items-start gap-3">
+                        <span className="text-gray-600 text-xs mt-0.5 w-4 shrink-0">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-200 text-xs font-medium truncate">{nodeLabel as string}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${t.simulated ? "bg-blue-900/60 text-blue-300" : "bg-gray-700 text-gray-400"}`}>
+                              {t.simulated ? "simulated" : "pass-through"}
+                            </span>
+                          </div>
+                          <pre className="text-gray-500 text-xs mt-1 truncate">{JSON.stringify(t.output).slice(0, 80)}…</pre>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-700 flex justify-end">
+              <button onClick={() => setShowSimulatePanel(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

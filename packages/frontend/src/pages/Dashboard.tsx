@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuthStore } from "../store/auth";
+import { DreamGenerator } from "../components/DreamGenerator";
 
 interface Workflow {
   id: string;
@@ -20,6 +21,7 @@ export function DashboardPage() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
+  const [showDreamGenerator, setShowDreamGenerator] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
@@ -68,6 +70,15 @@ export function DashboardPage() {
     navigate(`/workflow/${(data as Workflow).id}`);
   }
 
+  async function generateWorkflow(nodes: unknown[], edges: unknown[]) {
+    const { data } = await api.post("/workflows", {
+      name: "AI Generated Workflow",
+      nodes,
+      edges,
+    });
+    navigate(`/workflow/${(data as Workflow).id}`);
+  }
+
   async function duplicateWorkflow(wfId: string) {
     const { data } = await api.post(`/workflows/${wfId}/duplicate`);
     setWorkflows((prev) => [data as Workflow, ...prev]);
@@ -78,6 +89,17 @@ export function DashboardPage() {
     setWorkflows((prev) => prev.map((w) => (w.id === wf.id ? { ...w, active: (data as Workflow).active } : w)));
   }
 
+  async function exportWorkflow(wf: Workflow) {
+    const { data } = await api.get(`/workflows/${wf.id}/export`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${wf.name.replace(/[^a-z0-9_-]/gi, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function deleteWorkflow(id: string) {
     if (!confirm("Delete this workflow?")) return;
     await api.delete(`/workflows/${id}`);
@@ -86,6 +108,12 @@ export function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      {showDreamGenerator && (
+        <DreamGenerator
+          onClose={() => setShowDreamGenerator(false)}
+          onImport={generateWorkflow}
+        />
+      )}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold tracking-tight">Workflow Platform</h1>
         <div className="flex items-center gap-4">
@@ -126,6 +154,12 @@ export function DashboardPage() {
             Webhooks
           </button>
           <button
+            onClick={() => navigate("/schedules")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Schedules
+          </button>
+          <button
             onClick={() => navigate("/tokens")}
             className="text-sm text-gray-400 hover:text-white transition"
           >
@@ -157,6 +191,12 @@ export function DashboardPage() {
               className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition text-sm"
             >
               Import JSON
+            </button>
+            <button
+              onClick={() => setShowDreamGenerator(true)}
+              className="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg font-medium transition text-sm"
+            >
+              ✦ AI Generate
             </button>
             <button
               onClick={createWorkflow}
@@ -279,6 +319,13 @@ export function DashboardPage() {
                     title="Duplicate workflow"
                   >
                     ⧉
+                  </button>
+                  <button
+                    onClick={() => exportWorkflow(wf)}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+                    title="Export as JSON"
+                  >
+                    ↓
                   </button>
                   <button
                     onClick={() => deleteWorkflow(wf.id)}

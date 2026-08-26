@@ -183,16 +183,21 @@ router.post("/generate", async (req: AuthRequest, res) => {
       return res.status(503).json({ error: "AI generation unavailable — ANTHROPIC_API_KEY not configured" });
     }
 
+    const MODEL = "claude-sonnet-5";
     const systemPrompt = `You are DREAM, the HDV workflow architect. Generate a valid workflow JSON for the given intent.
-Return ONLY a JSON object:
+Return ONLY a JSON object (no markdown fences, no commentary):
 {
   "description": "one-sentence description",
-  "nodes": [{ "id": "n1", "type": "nodeType", "data": { "nodeType": "nodeType", "label": "..." } }],
+  "nodes": [{ "id": "n1", "type": "nodeType", "data": { "nodeType": "nodeType", "label": "Human-readable label", "description": "what this step does" } }],
   "edges": [{ "source": "n1", "target": "n2" }]
 }
-Available node types: webhookTrigger, httpRequest, ai, apex, knoll, code, set, filter, ifBranch, switch, email, slack, database, memoryRead, memoryWrite, aggregate, transform, datetime, validate, respond, stopError, noOp.
-Always include a knoll node before any httpRequest, email, slack, or database node for security.
-Keep it 3-8 nodes. Each node must have a unique id starting with "n".`;
+Available node types: webhookTrigger, httpRequest, ai, apex, knoll, code, set, filter, ifBranch, switch, email, slack, database, memoryRead, memoryWrite, aggregate, transform, datetime, validate, respond, stopError, noOp, hope, dream, vision.
+Rules:
+- Always include a knoll node before any httpRequest, email, slack, or database node for security.
+- Use hope as the first node if authentication is needed.
+- Use apex for any AI/LLM task to get automatic model routing.
+- Keep it 3-8 nodes. Each node must have a unique id starting with "n".
+- Every node must include a "label" and "description" in its data object.`;
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -202,7 +207,7 @@ Keep it 3-8 nodes. Each node must have a unique id starting with "n".`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-5",
+        model: MODEL,
         max_tokens: 2048,
         system: systemPrompt,
         messages: [{ role: "user", content: intent.trim() }],
@@ -213,16 +218,53 @@ Keep it 3-8 nodes. Each node must have a unique id starting with "n".`;
       return res.status(502).json({ error: `DREAM generation failed: HTTP ${resp.status}` });
     }
 
-    const data = (await resp.json()) as { content: Array<{ type: string; text: string }> };
-    const text = data.content?.find((c) => c.type === "text")?.text ?? "{}";
+    const aiResp = (await resp.json()) as {
+      content: Array<{ type: string; text: string }>;
+      usage?: { input_tokens: number; output_tokens: number };
+    };
+    const text = aiResp.content?.find((c) => c.type === "text")?.text ?? "{}";
 
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       const plan = JSON.parse(jsonMatch?.[0] ?? text) as { nodes: SimNode[]; edges: SimEdge[]; description: string };
-      const score = scoreWorkflow(plan.nodes ?? [], plan.edges ?? []);
-      return res.json({ mode: "generate", plan, score });
+      const planNodes: SimNode[] = plan.nodes ?? [];
+      const planEdges: SimEdge[] = plan.edges ?? [];
+      const score = scoreWorkflow(planNodes, planEdges);
+
+      // Build steps list for the frontend step display
+      const steps = planNodes.map((n, i) => ({
+        step: i + 1,
+        nodeType: String(n.data?.nodeType || n.type || ""),
+        label: String(n.data?.label || n.type || `Step ${i + 1}`),
+        description: String(n.data?.description || ""),
+        config: n.data,
+      }));
+
+      // Position nodes in a vertical layout for import
+      const positioned = planNodes.map((n, i) => ({
+        ...n,
+        position: { x: 200, y: 100 + i * 120 },
+      }));
+
+      return res.json({
+        mode: "generate",
+        plan: plan.description || text,
+        steps,
+        nodes: positioned,
+        edges: planEdges,
+        score,
+        model: MODEL,
+        usage: aiResp.usage,
+      });
     } catch {
-      return res.json({ mode: "generate", plan: { description: text, nodes: [], edges: [] } });
+      return res.json({
+        mode: "generate",
+        plan: text,
+        steps: [],
+        nodes: [],
+        edges: [],
+        model: MODEL,
+      });
     }
   } catch (err) {
     return res.status(500).json({ error: String(err) });

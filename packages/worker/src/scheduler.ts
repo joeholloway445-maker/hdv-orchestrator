@@ -46,7 +46,7 @@ async function syncSchedules(prisma: PrismaClient) {
     const task = cron.schedule(expr, async () => {
       try {
         const execution = await prisma.execution.create({
-          data: { workflowId: wfId, status: "PENDING" },
+          data: { workflowId: wfId, status: "PENDING", data: { _trigger: "schedule", _now: new Date().toISOString() } },
         });
         await enqueueWorkflow({ workflowId: wfId, executionId: execution.id, triggerData: { _trigger: "schedule", _now: new Date().toISOString() } });
         console.log(`[Scheduler] Triggered workflow ${wfId} execution ${execution.id}`);

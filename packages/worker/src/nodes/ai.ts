@@ -53,7 +53,7 @@ export async function executeAI(node: NodeDef, $input: Record<string, unknown>):
     throw new Error(`AI node: API error ${resp.status} — ${errText}`);
   }
 
-  const result = await resp.json() as { content: Array<{ type: string; text: string }>; usage?: unknown };
+  const result = await resp.json() as { content: Array<{ type: string; text: string }>; usage?: Record<string, unknown> };
   const text = result.content?.find((c) => c.type === "text")?.text ?? "";
 
   let parsed: unknown = text;
@@ -66,6 +66,6 @@ export async function executeAI(node: NodeDef, $input: Record<string, unknown>):
     aiText: text,
     aiResult: parsed,
     aiModel: model,
-    aiUsage: (result as any).usage,
+    aiUsage: result.usage,
   };
 }

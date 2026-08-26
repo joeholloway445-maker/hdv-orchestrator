@@ -8,12 +8,20 @@ export function setupSocketIO(io: SocketIOServer) {
       socket.handshake.auth?.token ||
       socket.handshake.headers?.authorization?.replace("Bearer ", "");
     if (!token) return next(new Error("Authentication required"));
+    // Try internal JWT first
     try {
       jwt.verify(token, process.env.JWT_SECRET!);
-      next();
-    } catch {
-      next(new Error("Invalid token"));
+      return next();
+    } catch { /* fall through */ }
+    // Try Supabase JWT if configured
+    const supabaseSecret = process.env.SUPABASE_JWT_SECRET;
+    if (supabaseSecret) {
+      try {
+        jwt.verify(token, supabaseSecret, { algorithms: ["HS256"] });
+        return next();
+      } catch { /* fall through */ }
     }
+    return next(new Error("Invalid token"));
   });
 
   io.on("connection", (socket) => {
