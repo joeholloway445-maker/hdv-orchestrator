@@ -285,14 +285,25 @@ export function ExecutionsPage() {
     await load();
   }
 
+  // Apply date range filter client-side
+  const visibleExecutions = executions.filter((e) => {
+    if (dateFrom && new Date(e.startedAt) < new Date(dateFrom)) return false;
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setDate(to.getDate() + 1); // inclusive end
+      if (new Date(e.startedAt) >= to) return false;
+    }
+    return true;
+  });
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-[#060A14] text-white">
       {detail && <ExecutionDetailPanel execution={detail} onClose={() => setDetail(null)} onNoteUpdate={(note) => setDetail((d) => d ? { ...d, data: { ...(d.data ?? {}), note } } : d)} />}
 
-      <header className="border-b border-gray-800 px-8 py-4 flex items-center justify-between">
+      <header className="border-b border-[#1e2d4a] bg-[#0E1524] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to="/dashboard" className="text-gray-400 hover:text-white text-sm">← Dashboard</Link>
-          <h1 className="text-xl font-bold">All Executions</h1>
+          <Link to="/dashboard" className="text-gray-400 hover:text-white text-sm transition-colors">← Dashboard</Link>
+          <h1 className="text-xl font-bold">Executions</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {["", "SUCCESS", "FAILED", "RUNNING", "PENDING"].map((s) => (
@@ -301,93 +312,136 @@ export function ExecutionsPage() {
               onClick={() => { setStatusFilter(s); load(s, workflowFilter); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                 statusFilter === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  ? "bg-[#3B6FFF] text-white"
+                  : "bg-[#0E1524] border border-[#1e2d4a] text-gray-300 hover:border-[#3B6FFF]"
               }`}
             >
               {s || "All"}
             </button>
           ))}
           <input
-            className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+            className="bg-[#0E1524] border border-[#1e2d4a] text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#3B6FFF] w-44"
             placeholder="Workflow ID…"
             value={workflowFilter}
             onChange={(e) => { setWorkflowFilter(e.target.value); load(statusFilter, e.target.value); }}
           />
-          <button onClick={() => load()} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
+          <button onClick={() => load()} className="bg-[#0E1524] border border-[#1e2d4a] hover:border-[#3B6FFF] text-gray-300 rounded-lg px-3 py-1.5 text-sm transition">
             Refresh
           </button>
           <button
             onClick={() => setAutoRefresh((a) => !a)}
-            className={`rounded-lg px-3 py-1.5 text-sm transition ${autoRefresh ? "bg-green-700 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${autoRefresh ? "bg-green-700 text-white" : "bg-[#0E1524] border border-[#1e2d4a] text-gray-300"}`}
             title="Auto-refresh every 5 seconds"
           >
             {autoRefresh ? "⟳ Live" : "⟳ Off"}
           </button>
           <div className="relative group">
-            <button className="bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-lg px-3 py-1.5 text-sm transition">
+            <button className="bg-red-950/40 border border-red-900/40 text-red-400 rounded-lg px-3 py-1.5 text-sm transition">
               Purge ▾
             </button>
-            <div className="hidden group-hover:flex absolute right-0 top-9 z-50 flex-col bg-gray-800 border border-gray-700 rounded-xl py-1 shadow-2xl min-w-[180px]">
-              <button onClick={() => bulkDelete("FAILED")} className="px-4 py-2 text-sm text-red-400 hover:bg-gray-700 text-left">Delete all FAILED</button>
-              <button onClick={() => bulkDelete("SUCCESS")} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Delete all SUCCESS</button>
-              <hr className="border-gray-700 my-1" />
-              <button onClick={() => purgeOld(7)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 7 days</button>
-              <button onClick={() => purgeOld(30)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 text-left">Purge older than 30 days</button>
+            <div className="hidden group-hover:flex absolute right-0 top-9 z-50 flex-col bg-[#0E1524] border border-[#1e2d4a] rounded-xl py-1 shadow-2xl min-w-[180px]">
+              <button onClick={() => bulkDelete("FAILED")} className="px-4 py-2 text-sm text-red-400 hover:bg-[#111d32] text-left">Delete all FAILED</button>
+              <button onClick={() => bulkDelete("SUCCESS")} className="px-4 py-2 text-sm text-gray-300 hover:bg-[#111d32] text-left">Delete all SUCCESS</button>
+              <hr className="border-[#1e2d4a] my-1" />
+              <button onClick={() => purgeOld(7)} className="px-4 py-2 text-sm text-gray-300 hover:bg-[#111d32] text-left">Purge older than 7 days</button>
+              <button onClick={() => purgeOld(30)} className="px-4 py-2 text-sm text-gray-300 hover:bg-[#111d32] text-left">Purge older than 30 days</button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="px-8 py-6">
-        {loading ? (
-          <p className="text-gray-500">Loading…</p>
-        ) : executions.length === 0 ? (
-          <p className="text-gray-500">No executions found.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-800">
+      {/* Date range filter bar */}
+      <div className="px-8 pt-4 flex items-center gap-3 flex-wrap">
+        <span className="text-xs text-gray-500">Date range:</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="bg-[#0E1524] border border-[#1e2d4a] text-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#3B6FFF]"
+        />
+        <span className="text-gray-600 text-xs">to</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="bg-[#0E1524] border border-[#1e2d4a] text-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#3B6FFF]"
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="text-xs text-gray-500 hover:text-white transition-colors"
+          >
+            Clear dates
+          </button>
+        )}
+        <span className="ml-auto text-xs text-gray-600">
+          {visibleExecutions.length} result{visibleExecutions.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
+      <div className="px-8 py-4">
+        {loading ? (
+          <div className="space-y-2 mt-2">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-12 bg-[#0E1524] border border-[#1e2d4a] rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : visibleExecutions.length === 0 ? (
+          <div className="mt-12 text-center py-16 bg-[#0E1524] border border-[#1e2d4a] rounded-xl">
+            <p className="text-gray-400 text-lg mb-2">No executions found</p>
+            <p className="text-gray-600 text-sm">Try adjusting your filters</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-[#1e2d4a] mt-2">
             <table className="w-full text-sm">
-              <thead className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wide">
+              <thead className="bg-[#0E1524] text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3 text-left">Execution ID</th>
                   <th className="px-4 py-3 text-left">Workflow</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Started</th>
                   <th className="px-4 py-3 text-left">Duration</th>
+                  <th className="px-4 py-3 text-left">Triggered By</th>
                   <th className="px-4 py-3 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {executions.map((e, idx) => (
+                {visibleExecutions.map((e) => (
                   <tr
                     key={e.id}
-                    className={`border-t border-gray-800 cursor-pointer hover:bg-gray-900/60 transition ${idx % 2 === 0 ? "bg-gray-950" : "bg-gray-900/30"}`}
-                    onClick={() => openDetail(e)}
+                    className="border-t border-[#1e2d4a] cursor-pointer hover:bg-[#111d32] transition-colors bg-[#060A14]"
+                    onClick={() => navigate(`/executions/${e.id}`)}
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{e.id.slice(0, 12)}…</td>
                     <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                       {e.workflow ? (
-                        <Link to={`/workflow/${e.workflowId}`} className="text-blue-400 hover:underline">
+                        <Link to={`/workflow/${e.workflowId}`} className="text-[#3B6FFF] hover:underline font-medium">
                           {e.workflow.name}
                         </Link>
                       ) : (
-                        <span className="text-gray-500 font-mono text-xs">{e.workflowId}</span>
+                        <span className="text-gray-500 font-mono text-xs">{e.workflowId.slice(0, 12)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${STATUS_COLORS[e.status] || "bg-gray-700 text-gray-300"}`}>
-                        {e.status}
-                      </span>
+                      <StatusChip status={e.status} />
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{new Date(e.startedAt).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{ms(e.startedAt, e.finishedAt)}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">
+                      <TimeAgo date={e.startedAt} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs font-mono">{ms(e.startedAt, e.finishedAt)}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {(e as ExecutionRow & { data?: { _trigger?: string } }).data?._trigger ?? "manual"}
+                    </td>
                     <td className="px-4 py-3 flex items-center gap-2" onClick={(ev) => ev.stopPropagation()}>
                       <button
-                        className="text-xs text-blue-400 hover:underline"
+                        className="text-xs text-[#3B6FFF] hover:underline"
+                        onClick={() => navigate(`/executions/${e.id}`)}
+                      >
+                        Detail
+                      </button>
+                      <button
+                        className="text-xs text-gray-400 hover:underline"
                         onClick={() => openDetail(e)}
                       >
-                        Logs
+                        Quick
                       </button>
                       {(e.status === "RUNNING" || e.status === "PENDING") && (
                         <button
@@ -425,7 +479,7 @@ export function ExecutionsPage() {
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition disabled:opacity-50"
+              className="px-6 py-2 bg-[#0E1524] border border-[#1e2d4a] hover:border-[#3B6FFF] text-gray-300 rounded-xl text-sm transition disabled:opacity-50"
             >
               {loadingMore ? "Loading…" : "Load More"}
             </button>

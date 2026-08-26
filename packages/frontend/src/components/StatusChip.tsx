@@ -23,7 +23,6 @@ const CHIP_STYLES: Record<string, { bg: string; text: string; pulse?: boolean }>
 export function StatusChip({ status, className = "" }: StatusChipProps) {
   const key = status.toUpperCase();
   const style = CHIP_STYLES[key] ?? { bg: "bg-gray-700", text: "text-gray-400" };
-  const label = key === "FAILED" ? "FAILED" : status.toUpperCase();
 
   return (
     <span
@@ -32,7 +31,7 @@ export function StatusChip({ status, className = "" }: StatusChipProps) {
       {style.pulse && (
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#3B6FFF] animate-pulse" />
       )}
-      {label}
+      {key}
     </span>
   );
 }

@@ -17,26 +17,19 @@ interface Workflow {
   executions?: Array<{ status: string; startedAt: string }>;
 }
 
-interface ExecutionRow {
+interface RecentExecution {
   id: string;
   status: string;
   startedAt: string;
-  finishedAt?: string;
   workflowId: string;
   workflow?: { id: string; name: string };
-}
-
-interface ScheduleEntry {
-  workflowId: string;
-  active: boolean;
-  cronExpression: string;
 }
 
 interface DashboardStats {
   totalWorkflows: number;
   activeSchedules: number;
   executionsToday: number;
-  recentExecutions: ExecutionRow[];
+  recentExecutions: RecentExecution[];
 }
 
 export function DashboardPage() {
@@ -51,34 +44,6 @@ export function DashboardPage() {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
-
-  async function fetchStats() {
-    try {
-      const [execRes, schedRes] = await Promise.all([
-        api.get("/executions?limit=100"),
-        api.get("/schedules"),
-      ]);
-      const execPayload = execRes.data as { items?: ExecutionRow[] } | ExecutionRow[];
-      const allExecs: ExecutionRow[] = Array.isArray(execPayload)
-        ? execPayload
-        : (execPayload.items ?? []);
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const executionsToday = allExecs.filter(
-        (e) => new Date(e.startedAt) >= todayStart
-      ).length;
-      const schedules = (schedRes.data as ScheduleEntry[]) || [];
-      const activeSchedules = schedules.filter((s) => s.active).length;
-      setStats({
-        totalWorkflows: 0, // will be set when workflows load
-        activeSchedules,
-        executionsToday,
-        recentExecutions: allExecs.slice(0, 5),
-      });
-    } catch {
-      // stats are non-critical; fail silently
-    }
-  }
 
   async function importWorkflow() {
     const input = document.createElement("input");
@@ -97,6 +62,34 @@ export function DashboardPage() {
       navigate(`/workflow/${(data as Workflow).id}`);
     };
     input.click();
+  }
+
+  async function fetchStats() {
+    try {
+      const [execRes, schedRes] = await Promise.all([
+        api.get("/executions?limit=100"),
+        api.get("/schedules"),
+      ]);
+      const execPayload = execRes.data as { items?: RecentExecution[] } | RecentExecution[];
+      const allExecs: RecentExecution[] = Array.isArray(execPayload)
+        ? execPayload
+        : (execPayload.items ?? []);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const executionsToday = allExecs.filter(
+        (e) => new Date(e.startedAt) >= todayStart
+      ).length;
+      const schedules = (schedRes.data as Array<{ active: boolean }>) || [];
+      const activeSchedules = schedules.filter((s) => s.active).length;
+      setStats({
+        totalWorkflows: 0,
+        activeSchedules,
+        executionsToday,
+        recentExecutions: allExecs.slice(0, 5),
+      });
+    } catch {
+      // stats are non-critical
+    }
   }
 
   function fetchWorkflows(s: string, tag: string, active: string) {
@@ -118,11 +111,9 @@ export function DashboardPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search, tagFilter, activeFilter]);
 
-  // Update totalWorkflows whenever the workflows list changes
+  // Update totalWorkflows when workflows list changes
   useEffect(() => {
-    if (workflows.length > 0) {
-      setStats((prev) => prev ? { ...prev, totalWorkflows: workflows.length } : prev);
-    }
+    setStats((prev) => prev ? { ...prev, totalWorkflows: workflows.length } : prev);
   }, [workflows.length]);
 
   // Fetch stats once on mount

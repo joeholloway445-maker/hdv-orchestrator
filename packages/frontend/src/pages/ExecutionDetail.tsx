@@ -149,7 +149,8 @@ export function ExecutionDetailPage() {
     }
 
     const baseUrl =
-      (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) ||
       "http://localhost:4000";
 
     const socket = io(baseUrl, { auth: { token } });
@@ -303,7 +304,6 @@ export function ExecutionDetailPage() {
           </div>
         </section>
 
-        {/* Node timeline */}
         <section>
           <h2 className="text-gray-300 font-semibold mb-3 flex items-center gap-2">
             Node Timeline
@@ -327,7 +327,7 @@ export function ExecutionDetailPage() {
         </section>
 
         {/* KNOLL Audit */}
-        {knollAudit && <KnollAuditSection audit={knollAudit} />}
+        {knollAudit != null && <KnollAuditSection audit={knollAudit} />}
 
         {/* Workflow link */}
         <div className="flex items-center gap-4 pt-2 border-t border-[#1e2d4a]">

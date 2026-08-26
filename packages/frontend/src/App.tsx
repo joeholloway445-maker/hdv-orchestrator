@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
@@ -22,118 +21,118 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const init = useAuthStore((s) => s.init);
-
-  useEffect(() => {
-    init();
-  }, [init]);
-
   return (
     <BrowserRouter>
       <ErrorBoundary>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        {/* /dashboard is the canonical post-login landing */}
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <DashboardPage />
-            </PrivateRoute>
-          }
-        />
-        {/* Keep / as alias so existing deep-links still work */}
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <DashboardPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/workflow/:id"
-          element={
-            <PrivateRoute>
-              <EditorPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/memory"
-          element={
-            <PrivateRoute>
-              <MemoryPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/credentials"
-          element={
-            <PrivateRoute>
-              <CredentialsPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/variables"
-          element={
-            <PrivateRoute>
-              <VariablesPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/executions"
-          element={
-            <PrivateRoute>
-              <ExecutionsPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/executions/:id"
-          element={
-            <PrivateRoute>
-              <ExecutionDetailPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/tokens"
-          element={
-            <PrivateRoute>
-              <TokensPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/webhooks"
-          element={
-            <PrivateRoute>
-              <WebhooksPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/templates"
-          element={
-            <PrivateRoute>
-              <TemplatesPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/schedules"
-          element={
-            <PrivateRoute>
-              <SchedulesPage />
-            </PrivateRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workflow/:id"
+            element={
+              <PrivateRoute>
+                <EditorPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/editor/new"
+            element={
+              <PrivateRoute>
+                <EditorPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/memory"
+            element={
+              <PrivateRoute>
+                <MemoryPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/credentials"
+            element={
+              <PrivateRoute>
+                <CredentialsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/variables"
+            element={
+              <PrivateRoute>
+                <VariablesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/executions"
+            element={
+              <PrivateRoute>
+                <ExecutionsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/executions/:id"
+            element={
+              <PrivateRoute>
+                <ExecutionDetailPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tokens"
+            element={
+              <PrivateRoute>
+                <TokensPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/webhooks"
+            element={
+              <PrivateRoute>
+                <WebhooksPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/templates"
+            element={
+              <PrivateRoute>
+                <TemplatesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/schedules"
+            element={
+              <PrivateRoute>
+                <SchedulesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </ErrorBoundary>
     </BrowserRouter>
   );

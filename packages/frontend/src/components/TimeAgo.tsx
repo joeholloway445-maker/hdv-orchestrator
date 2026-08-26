@@ -9,7 +9,7 @@ function formatTimeAgo(date: Date): string {
   const days = Math.floor(hours / 24);
 
   if (seconds < 10) return "just now";
-  if (seconds < 60) return `${seconds} seconds ago`;
+  if (seconds < 60) return `${seconds}s ago`;
   if (minutes === 1) return "1 minute ago";
   if (minutes < 60) return `${minutes} minutes ago`;
   if (hours === 1) return "1 hour ago";
@@ -32,6 +32,7 @@ export function TimeAgo({ date, className = "" }: TimeAgoProps) {
     const interval = setInterval(tick, 30_000);
     tick();
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed.getTime()]);
 
   return (
