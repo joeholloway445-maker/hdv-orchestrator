@@ -89,6 +89,17 @@ export function DashboardPage() {
     setWorkflows((prev) => prev.map((w) => (w.id === wf.id ? { ...w, active: (data as Workflow).active } : w)));
   }
 
+  async function exportWorkflow(wf: Workflow) {
+    const { data } = await api.get(`/workflows/${wf.id}/export`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${wf.name.replace(/[^a-z0-9_-]/gi, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function deleteWorkflow(id: string) {
     if (!confirm("Delete this workflow?")) return;
     await api.delete(`/workflows/${id}`);
@@ -308,6 +319,13 @@ export function DashboardPage() {
                     title="Duplicate workflow"
                   >
                     ⧉
+                  </button>
+                  <button
+                    onClick={() => exportWorkflow(wf)}
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition"
+                    title="Export as JSON"
+                  >
+                    ↓
                   </button>
                   <button
                     onClick={() => deleteWorkflow(wf.id)}

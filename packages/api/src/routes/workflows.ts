@@ -267,4 +267,65 @@ router.get("/:id/stats", async (req: AuthRequest, res) => {
   });
 });
 
+// ── PATCH (partial update — used by Schedules page for active toggle) ─────────
+
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const allowed: Record<string, unknown> = {};
+  if (req.body.active !== undefined) allowed.active = Boolean(req.body.active);
+  if (req.body.name !== undefined) allowed.name = String(req.body.name);
+
+  const updated = await prisma.workflow.update({
+    where: { id: req.params.id },
+    data: allowed,
+  });
+  res.json(updated);
+});
+
+// ── Export / Import ────────────────────────────────────────────────────────────
+
+router.get("/:id/export", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const bundle = {
+    version: "1",
+    exportedAt: new Date().toISOString(),
+    workflow: {
+      name: workflow.name,
+      description: workflow.description,
+      tags: workflow.tags,
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+    },
+  };
+
+  res.setHeader("Content-Disposition", `attachment; filename="${workflow.name.replace(/[^a-z0-9_-]/gi, "_")}.json"`);
+  res.json(bundle);
+});
+
+router.post("/import", async (req: AuthRequest, res) => {
+  const { bundle } = req.body as { bundle: { workflow: { name: string; description?: string; tags?: string[]; nodes: unknown; edges: unknown } } };
+  if (!bundle?.workflow?.nodes) return res.status(400).json({ error: "Invalid workflow bundle — missing nodes" });
+
+  const wf = bundle.workflow;
+  const workflow = await prisma.workflow.create({
+    data: {
+      name: (wf.name || "Imported Workflow") + " (Import)",
+      userId: req.userId!,
+      nodes: wf.nodes as object[],
+      edges: wf.edges as object[],
+      description: wf.description || null,
+      tags: Array.isArray(wf.tags) ? wf.tags : [],
+    },
+  });
+  res.status(201).json(workflow);
+});
+
 export { router as workflowsRouter };

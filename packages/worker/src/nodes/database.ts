@@ -26,7 +26,7 @@ export async function executeDatabase(
     try {
       const cred = await prisma.credential.findUnique({ where: { id: credentialId } });
       if (cred) {
-        const raw = decrypt(String(cred.encryptedData)) as unknown as Record<string, unknown>;
+        const raw = JSON.parse(decrypt(cred.data)) as Record<string, unknown>;
         if (raw.host) host = String(raw.host);
         if (raw.port) port = Number(raw.port);
         if (raw.database) database = String(raw.database);

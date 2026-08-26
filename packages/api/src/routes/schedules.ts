@@ -16,7 +16,7 @@ router.get("/", async (req: AuthRequest, res) => {
     orderBy: { updatedAt: "desc" },
     include: {
       executions: {
-        where: { triggerData: { path: ["_trigger"], equals: "schedule" } },
+        where: { data: { path: ["_trigger"], equals: "schedule" } },
         orderBy: { startedAt: "desc" },
         take: 1,
         select: { startedAt: true, status: true },
