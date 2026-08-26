@@ -30,6 +30,7 @@ interface ExecutionDetail extends ExecutionRow {
 
 const STATUS_COLORS: Record<string, string> = {
   SUCCESS: "bg-green-900 text-green-300",
+  FAILED: "bg-red-900 text-red-300",
   ERROR: "bg-red-900 text-red-300",
   PENDING: "bg-yellow-900 text-yellow-300",
   RUNNING: "bg-blue-900 text-blue-300",
@@ -173,18 +174,52 @@ function ExecutionDetailPanel({ execution, onClose, onNoteUpdate }: { execution:
 export function ExecutionsPage() {
   const [executions, setExecutions] = useState<ExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  async function load() {
+  function buildParams(extra?: Record<string, string>) {
+    const p = new URLSearchParams({ limit: "50" });
+    if (statusFilter) p.set("status", statusFilter);
+    if (workflowFilter) p.set("workflowId", workflowFilter);
+    if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    return p.toString();
+  }
+
+  async function load(sf = statusFilter, wf = workflowFilter) {
     setLoading(true);
     try {
-      const { data } = await api.get("/executions?limit=100");
-      setExecutions(data as ExecutionRow[]);
+      const p = new URLSearchParams({ limit: "50" });
+      if (sf) p.set("status", sf);
+      if (wf) p.set("workflowId", wf);
+      const { data } = await api.get(`/executions?${p.toString()}`);
+      const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
+      const list = Array.isArray(payload) ? payload : (payload.items ?? []);
+      const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
+      setExecutions(list as ExecutionRow[]);
+      setNextCursor(cursor);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await api.get(`/executions?${buildParams({ cursor: nextCursor })}`);
+      const payload = data as { items?: ExecutionRow[]; nextCursor?: string | null } | ExecutionRow[];
+      const list = Array.isArray(payload) ? payload : (payload.items ?? []);
+      const cursor = Array.isArray(payload) ? null : (payload.nextCursor ?? null);
+      setExecutions((prev) => [...prev, ...list as ExecutionRow[]]);
+      setNextCursor(cursor);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -192,9 +227,9 @@ export function ExecutionsPage() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(load, 5000);
+    const interval = setInterval(() => load(), 5000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, statusFilter, workflowFilter]);
 
   async function openDetail(e: ExecutionRow) {
     const { data } = await api.get(`/executions/${e.id}`);
@@ -221,6 +256,18 @@ export function ExecutionsPage() {
     }
   }
 
+  async function cancel(e: ExecutionRow, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    setCancelling(e.id);
+    try {
+      const { data } = await api.post(`/executions/${e.id}/cancel`);
+      const updated = data as ExecutionRow;
+      setExecutions((prev) => prev.map((x) => x.id === e.id ? { ...x, status: updated.status } : x));
+    } finally {
+      setCancelling(null);
+    }
+  }
+
   async function bulkDelete(status: string) {
     if (!confirm(`Delete all ${status || "selected"} executions?`)) return;
     await api.delete(`/executions${status ? `?status=${status}` : ""}`);
@@ -232,15 +279,6 @@ export function ExecutionsPage() {
     await api.delete(`/executions?olderThanDays=${days}`);
     await load();
   }
-
-  const filtered = filter
-    ? executions.filter(
-        (e) =>
-          e.status === filter.toUpperCase() ||
-          e.workflow?.name?.toLowerCase().includes(filter.toLowerCase()) ||
-          e.workflowId.includes(filter),
-      )
-    : executions;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -255,9 +293,9 @@ export function ExecutionsPage() {
           {["", "SUCCESS", "FAILED", "RUNNING", "PENDING"].map((s) => (
             <button
               key={s}
-              onClick={() => setFilter(s)}
+              onClick={() => { setStatusFilter(s); load(s, workflowFilter); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                filter === s
+                statusFilter === s
                   ? "bg-blue-600 text-white"
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
@@ -267,11 +305,11 @@ export function ExecutionsPage() {
           ))}
           <input
             className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
-            placeholder="Search by name…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Workflow ID…"
+            value={workflowFilter}
+            onChange={(e) => { setWorkflowFilter(e.target.value); load(statusFilter, e.target.value); }}
           />
-          <button onClick={load} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
+          <button onClick={() => load()} className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-3 py-1.5 text-sm transition">
             Refresh
           </button>
           <button
@@ -299,10 +337,11 @@ export function ExecutionsPage() {
       <div className="px-8 py-6">
         {loading ? (
           <p className="text-gray-500">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : executions.length === 0 ? (
           <p className="text-gray-500">No executions found.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-800">
+
             <table className="w-full text-sm">
               <thead className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wide">
                 <tr>
@@ -315,7 +354,7 @@ export function ExecutionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e, idx) => (
+                {executions.map((e, idx) => (
                   <tr
                     key={e.id}
                     className={`border-t border-gray-800 cursor-pointer hover:bg-gray-900/60 transition ${idx % 2 === 0 ? "bg-gray-950" : "bg-gray-900/30"}`}
@@ -345,6 +384,15 @@ export function ExecutionsPage() {
                       >
                         Logs
                       </button>
+                      {(e.status === "RUNNING" || e.status === "PENDING") && (
+                        <button
+                          className="text-xs text-orange-400 hover:underline disabled:opacity-50"
+                          disabled={cancelling === e.id}
+                          onClick={(ev) => cancel(e, ev)}
+                        >
+                          {cancelling === e.id ? "…" : "Cancel"}
+                        </button>
+                      )}
                       {(e.status === "FAILED" || e.status === "SUCCESS") && (
                         <button
                           className="text-xs text-yellow-400 hover:underline disabled:opacity-50"
@@ -365,6 +413,17 @@ export function ExecutionsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {nextCursor && !loading && (
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition disabled:opacity-50"
+            >
+              {loadingMore ? "Loading…" : "Load More"}
+            </button>
           </div>
         )}
       </div>

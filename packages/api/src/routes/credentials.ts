@@ -11,7 +11,7 @@ router.get("/", async (req: AuthRequest, res) => {
     where: { userId: req.userId! },
     orderBy: { name: "asc" },
   });
-  res.json(creds.map(({ data: _d, ...c }) => c));
+  res.json(creds.map(({ data: _d, ...c }: { data: unknown; [k: string]: unknown }) => c));
 });
 
 router.post("/", async (req: AuthRequest, res) => {

@@ -76,7 +76,7 @@ export async function executeHttpRequest(
     headers?: Record<string, string>;
     body?: string;
     credentialId?: string;
-    credentialInject?: "header" | "query" | "bearer";
+    credentialInject?: "header" | "query" | "bearer" | "oauth2";
     queryParams?: KVPair[];
     customHeaders?: KVPair[];
     timeout?: string | number;
@@ -134,6 +134,26 @@ export async function executeHttpRequest(
         resolvedHeaders["Authorization"] = `Bearer ${credData.token}`;
       } else if (mode === "header" && credData.headerName && credData.headerValue) {
         resolvedHeaders[credData.headerName] = credData.headerValue;
+      } else if (mode === "query" && credData.paramName && credData.paramValue) {
+        resolvedParams[credData.paramName] = credData.paramValue;
+      } else if (mode === "oauth2" && credData.clientId && credData.clientSecret && credData.tokenUrl) {
+        // Client credentials grant — fetch a fresh token before the request
+        const tokenResp = await fetch(credData.tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: credData.clientId,
+            client_secret: credData.clientSecret,
+            ...(credData.scope ? { scope: credData.scope } : {}),
+          }).toString(),
+        });
+        if (tokenResp.ok) {
+          const tokenData = await tokenResp.json() as { access_token?: string };
+          if (tokenData.access_token) {
+            resolvedHeaders["Authorization"] = `Bearer ${tokenData.access_token}`;
+          }
+        }
       }
     }
   }

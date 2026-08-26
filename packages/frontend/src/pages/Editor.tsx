@@ -87,6 +87,8 @@ export const NODE_TYPE_CONFIG = [
   { type: "httpRequest", label: "HTTP Request", color: "bg-blue-700", description: "Calls an external URL", category: "Core" },
   { type: "code", label: "Code", color: "bg-orange-700", description: "Sandboxed JS", category: "Core" },
   { type: "email", label: "Email", color: "bg-sky-700", description: "Send SMTP email", category: "Core" },
+  { type: "slack", label: "Slack", color: "bg-purple-600", description: "Send Slack message via webhook", category: "Core" },
+  { type: "database", label: "Database", color: "bg-green-900", description: "Query Postgres or MySQL", category: "Core" },
   { type: "respond", label: "Respond", color: "bg-rose-700", description: "Webhook response", category: "Core" },
   // Flow
   { type: "ifBranch", label: "IF Branch", color: "bg-yellow-700", description: "Conditional routing", category: "Flow" },
@@ -115,6 +117,12 @@ export const NODE_TYPE_CONFIG = [
   { type: "jsonPath", label: "JSON Path", color: "bg-indigo-600", description: "Get, set, pick, omit, rename fields", category: "Data" },
   { type: "csv", label: "CSV", color: "bg-green-700", description: "Parse or stringify CSV", category: "Data" },
   { type: "htmlExtract", label: "HTML Extract", color: "bg-orange-800", description: "Extract data from HTML", category: "Data" },
+  { type: "xml", label: "XML", color: "bg-lime-700", description: "Parse or stringify XML", category: "Data" },
+  { type: "rss", label: "RSS / Atom", color: "bg-orange-600", description: "Fetch and parse RSS/Atom feed", category: "Data" },
+  { type: "deduplicate", label: "Deduplicate", color: "bg-teal-700", description: "Remove duplicate items from an array", category: "Data" },
+  { type: "sort", label: "Sort", color: "bg-cyan-700", description: "Sort array items by a field or value", category: "Data" },
+  { type: "limit", label: "Limit", color: "bg-indigo-700", description: "Cap array to a maximum number of items", category: "Data" },
+  { type: "renameKeys", label: "Rename Keys", color: "bg-violet-700", description: "Rename or move fields using dot-path mappings", category: "Data" },
   { type: "stickyNote", label: "Sticky Note", color: "bg-yellow-500", description: "Canvas annotation", category: "Utilities" },
 ];
 
@@ -151,6 +159,7 @@ export function EditorPage() {
   const [nodeLogs, setNodeLogs] = useState<NodeLog[]>([]);
   const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
   const [quickAddSearch, setQuickAddSearch] = useState("");
+  const [stats, setStats] = useState<{ total: number; successRate: number | null; avgDurationMs: number | null } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -235,7 +244,7 @@ export function EditorPage() {
       setEdges((wf.edges as Edge[]) || []);
     });
     api.get(`/executions/workflow/${id}`).then(async ({ data }) => {
-      const execs = data as ExecutionRecord[];
+      const execs: ExecutionRecord[] = Array.isArray(data) ? data : ((data as { items?: ExecutionRecord[] }).items ?? []);
       setExecutions(execs);
       // Load node logs from most recent finished execution for output overlays
       const lastFinished = execs.find((e) => e.status === "SUCCESS" || e.status === "FAILED");
@@ -250,8 +259,12 @@ export function EditorPage() {
       }
     });
     api.get("/workflows").then(({ data }) => {
-      setAllWorkflows((data as WorkflowRecord[]).map((w) => ({ id: w.id, name: w.name })));
+      const list = Array.isArray(data) ? data : ((data as { items?: WorkflowRecord[] }).items ?? []);
+      setAllWorkflows(list.map((w: WorkflowRecord) => ({ id: w.id, name: w.name })));
     });
+    api.get(`/workflows/${id}/stats`).then(({ data }) => {
+      setStats(data as { total: number; successRate: number | null; avgDurationMs: number | null });
+    }).catch(() => {});
   }, [id]);
 
   useEffect(() => {
@@ -283,7 +296,10 @@ export function EditorPage() {
   }, [executionId]);
 
   function refreshExecutions() {
-    api.get(`/executions/workflow/${id}`).then(({ data }) => setExecutions(data as ExecutionRecord[]));
+    api.get(`/executions/workflow/${id}`).then(({ data }) => {
+      const execs: ExecutionRecord[] = Array.isArray(data) ? data : ((data as { items?: ExecutionRecord[] }).items ?? []);
+      setExecutions(execs);
+    });
   }
 
   async function retryExecution(execId: string, e: React.MouseEvent) {
@@ -291,6 +307,16 @@ export function EditorPage() {
     const { data } = await api.post(`/executions/${execId}/retry`);
     const fresh = data as ExecutionRecord;
     setExecutions((prev) => [fresh, ...prev]);
+  }
+
+  async function cancelExecution(execId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const { data } = await api.post(`/executions/${execId}/cancel`);
+    const updated = data as ExecutionRecord;
+    setExecutions((prev) => prev.map((ex) => ex.id === execId ? { ...ex, status: updated.status } : ex));
+    if (execId === executionId) {
+      setExecuting(false);
+    }
   }
 
   async function loadExecutionLogs(execId: string) {
@@ -527,6 +553,21 @@ export function EditorPage() {
           value={workflow?.name || ""}
           onChange={(e) => setWorkflow((w) => (w ? { ...w, name: e.target.value } : w))}
         />
+        {stats && stats.total > 0 && (
+          <div className="flex items-center gap-3 text-xs text-gray-500 shrink-0">
+            <span title="Total executions">{stats.total} runs</span>
+            {stats.successRate !== null && (
+              <span title="Success rate" className={stats.successRate >= 80 ? "text-green-400" : stats.successRate >= 50 ? "text-yellow-400" : "text-red-400"}>
+                {stats.successRate}% ok
+              </span>
+            )}
+            {stats.avgDurationMs !== null && (
+              <span title="Average duration">
+                avg {stats.avgDurationMs >= 1000 ? `${(stats.avgDurationMs / 1000).toFixed(1)}s` : `${stats.avgDurationMs}ms`}
+              </span>
+            )}
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <button
             onClick={importWorkflow}
@@ -742,6 +783,15 @@ export function EditorPage() {
                         }`}
                       />
                       <span className="text-xs text-gray-300 capitalize flex-1">{ex.status.toLowerCase()}</span>
+                      {(ex.status === "RUNNING" || ex.status === "PENDING") && (
+                        <button
+                          onClick={(e) => cancelExecution(ex.id, e)}
+                          className="text-gray-500 hover:text-red-400 text-xs px-1 transition"
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      )}
                       {(ex.status === "FAILED" || ex.status === "SUCCESS") && (
                         <button
                           onClick={(e) => retryExecution(ex.id, e)}

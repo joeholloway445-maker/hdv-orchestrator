@@ -128,6 +128,29 @@ const TEMPLATES = [
     ],
   },
   {
+    id: "slack-alert",
+    name: "Webhook → Slack Alert",
+    description: "Receives a webhook and posts a formatted message to Slack. Good for alert routing and notifications.",
+    tags: ["slack", "webhook", "notifications"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace" } },
+      { id: "n2", type: "slack", position: { x: 300, y: 200 }, data: { label: "Send Slack", nodeType: "slack", webhookUrl: "", text: "Alert: {{$input.body.message}} — at {{$now}}", username: "Workflow Bot", iconEmoji: ":bell:" } },
+    ],
+    edges: [{ id: "e1", source: "n1", target: "n2" }],
+  },
+  {
+    id: "db-query-respond",
+    name: "Webhook → DB Query → Respond",
+    description: "Receives a webhook, queries Postgres for a record by ID, and returns the result as a JSON response.",
+    tags: ["database", "webhook", "postgres"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "database", position: { x: 300, y: 200 }, data: { label: "Query DB", nodeType: "database", dialect: "postgres", host: "localhost", port: "5432", database: "mydb", user: "postgres", query: "SELECT * FROM users WHERE id = '{{$input.body.id}}' LIMIT 1", operation: "query" } },
+      { id: "n3", type: "respond", position: { x: 540, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [{ id: "e1", source: "n1", target: "n2" }, { id: "e2", source: "n2", target: "n3" }],
+  },
+  {
     id: "crypto-hash-pipeline",
     name: "Hash & Transform Pipeline",
     description: "Receives data via webhook, hashes a field with SHA-256, transforms the output, and responds.",
@@ -142,6 +165,148 @@ const TEMPLATES = [
       { id: "e1", source: "n1", target: "n2" },
       { id: "e2", source: "n2", target: "n3" },
       { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "batch-process",
+    name: "Batch Processing Pipeline",
+    description: "Fetches a large list, splits it into chunks of 10, processes each batch with an HTTP call, then aggregates results.",
+    tags: ["batch", "loop", "data"],
+    nodes: [
+      { id: "n1", type: "manualTrigger", position: { x: 60, y: 200 }, data: { label: "Start", nodeType: "manualTrigger", testData: '{"url": "https://jsonplaceholder.typicode.com/todos"}' } },
+      { id: "n2", type: "httpRequest", position: { x: 260, y: 200 }, data: { label: "Fetch List", nodeType: "httpRequest", method: "GET", url: "https://jsonplaceholder.typicode.com/todos" } },
+      { id: "n3", type: "set", position: { x: 460, y: 200 }, data: { label: "Wrap Array", nodeType: "set", mappings: [{ key: "items", value: "{{$input.body}}" }] } },
+      { id: "n4", type: "splitBatches", position: { x: 660, y: 200 }, data: { label: "Split 10", nodeType: "splitBatches", arrayKey: "items", batchSize: "10", outputKey: "batch" } },
+      { id: "n5", type: "aggregate", position: { x: 860, y: 200 }, data: { label: "Collect Results", nodeType: "aggregate", arrayKey: "batch", outputKey: "processed" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n4", target: "n5" },
+    ],
+  },
+  {
+    id: "ai-content-moderation",
+    name: "AI Content Moderation",
+    description: "Receives user-submitted content via webhook, checks it with AI for safety, and routes to approve or reject.",
+    tags: ["ai", "webhook", "moderation"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 250 }, data: { label: "Submit Content", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "ai", position: { x: 280, y: 250 }, data: { label: "Moderate", nodeType: "ai", model: "claude-haiku-4-5-20251001", systemPrompt: "You are a content moderator. Review the text and reply with exactly one word: SAFE or UNSAFE.", userPrompt: "{{$input.body.content}}", maxTokens: "5" } },
+      { id: "n3", type: "ifBranch", position: { x: 500, y: 250 }, data: { label: "Safe?", nodeType: "ifBranch", conditions: [{ field: "aiText", operator: "equals", value: "SAFE" }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 100 }, data: { label: "Approved", nodeType: "respond", statusCode: "200", responseBody: '{"approved": true}' } },
+      { id: "n5", type: "respond", position: { x: 720, y: 400 }, data: { label: "Rejected", nodeType: "respond", statusCode: "422", responseBody: '{"approved": false, "reason": "Content flagged by moderation"}' } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4", sourceHandle: "true", label: "true" },
+      { id: "e4", source: "n3", target: "n5", sourceHandle: "false", label: "false" },
+    ],
+  },
+  {
+    id: "scheduled-db-report",
+    name: "Scheduled DB Report → Slack",
+    description: "Runs a database query on a schedule, formats the result with AI, and posts a summary to Slack.",
+    tags: ["schedule", "database", "slack", "ai"],
+    nodes: [
+      { id: "n1", type: "scheduleTrigger", position: { x: 60, y: 200 }, data: { label: "Daily 9am", nodeType: "scheduleTrigger", cronExpression: "0 9 * * *" } },
+      { id: "n2", type: "database", position: { x: 280, y: 200 }, data: { label: "Query Stats", nodeType: "database", dialect: "postgres", host: "localhost", port: "5432", database: "mydb", user: "postgres", query: "SELECT status, COUNT(*) as count FROM orders WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY status", operation: "query" } },
+      { id: "n3", type: "ai", position: { x: 500, y: 200 }, data: { label: "Format Report", nodeType: "ai", model: "claude-haiku-4-5-20251001", systemPrompt: "You create concise Slack-friendly business summaries. Use bullet points and emojis.", userPrompt: "Summarize this daily order report in 3-5 bullet points for the team Slack channel:\n\n{{$input.rows}}", maxTokens: "256" } },
+      { id: "n4", type: "slack", position: { x: 720, y: 200 }, data: { label: "Post to Slack", nodeType: "slack", webhookUrl: "", text: "📊 *Daily Orders Report*\n\n{{$input.aiText}}", username: "ReportBot", iconEmoji: ":bar_chart:" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "regex-filter-enrich",
+    name: "Regex Filter & Enrich",
+    description: "Receives a list via webhook, filters items by regex pattern, enriches each match with an HTTP lookup, and responds.",
+    tags: ["filter", "regex", "http", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "filter", position: { x: 280, y: 200 }, data: { label: "Filter by Email Pattern", nodeType: "filter", arrayKey: "body.users", conditions: [{ field: "email", operator: "matches", value: "^[a-z0-9._%+\\-]+@example\\.com$" }] } },
+      { id: "n3", type: "transform", position: { x: 500, y: 200 }, data: { label: "Shape", nodeType: "transform", keepInput: false, mappings: [{ key: "matched", value: "{{$input.body.users}}" }, { key: "count", value: "{{$input._filterCount}}" }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "rss-dedup-email",
+    name: "RSS Feed → Deduplicate → Email Digest",
+    description: "Fetches an RSS feed on a schedule, removes duplicates by guid, and emails a digest of new items.",
+    tags: ["rss", "deduplicate", "email", "schedule"],
+    nodes: [
+      { id: "n1", type: "scheduleTrigger", position: { x: 60, y: 200 }, data: { label: "Every 6 Hours", nodeType: "scheduleTrigger", cronExpression: "0 */6 * * *" } },
+      { id: "n2", type: "rss", position: { x: 280, y: 200 }, data: { label: "Fetch Feed", nodeType: "rss", url: "https://hnrss.org/frontpage", outputField: "items", limit: "50" } },
+      { id: "n3", type: "deduplicate", position: { x: 500, y: 200 }, data: { label: "Remove Seen", nodeType: "deduplicate", arrayKey: "items", dedupeField: "guid", strategy: "removeSubsequent" } },
+      { id: "n4", type: "email", position: { x: 720, y: 200 }, data: { label: "Email Digest", nodeType: "email", to: "you@example.com", subject: "RSS Digest: {{$input.items.length}} new items", body2: "{{$input.items}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "webhook-sort-limit-respond",
+    name: "Webhook → Sort & Limit → Respond",
+    description: "Receives an array, sorts by a field descending, caps at 10 items, and returns the result.",
+    tags: ["sort", "limit", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "sort", position: { x: 280, y: 200 }, data: { label: "Sort by Score", nodeType: "sort", arrayKey: "body.items", sortField: "score", direction: "desc" } },
+      { id: "n3", type: "limit", position: { x: 500, y: 200 }, data: { label: "Top 10", nodeType: "limit", arrayKey: "body.items", maxItems: "10", keepFrom: "start" } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "xml-parse-transform",
+    name: "HTTP → XML Parse → Transform → Respond",
+    description: "Fetches an XML API response, parses it to JSON, extracts fields, and responds with clean data.",
+    tags: ["xml", "http", "transform", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "httpRequest", position: { x: 280, y: 200 }, data: { label: "Fetch XML", nodeType: "httpRequest", method: "GET", url: "{{$input.body.url}}", contentType: "raw" } },
+      { id: "n3", type: "xml", position: { x: 500, y: 200 }, data: { label: "Parse XML", nodeType: "xml", operation: "parse", inputField: "body", outputField: "parsed" } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond", nodeType: "respond", statusCode: "200", responseBody: "{{$input.parsed}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+    ],
+  },
+  {
+    id: "rename-validate-respond",
+    name: "Webhook → Rename Keys → Validate → Respond",
+    description: "Normalizes incoming field names, validates the schema, and responds or routes to error branch.",
+    tags: ["renameKeys", "validate", "webhook"],
+    nodes: [
+      { id: "n1", type: "webhookTrigger", position: { x: 60, y: 200 }, data: { label: "Webhook In", nodeType: "webhookTrigger", webhookId: "auto-replace", syncResponse: true } },
+      { id: "n2", type: "renameKeys", position: { x: 280, y: 200 }, data: { label: "Normalize Keys", nodeType: "renameKeys", mappings: [{ from: "body.user_id", to: "userId" }, { from: "body.first_name", to: "firstName" }, { from: "body.last_name", to: "lastName" }] } },
+      { id: "n3", type: "validate", position: { x: 500, y: 200 }, data: { label: "Validate", nodeType: "validate", mode: "throw", rules: [{ field: "userId", type: "string", required: true }, { field: "firstName", type: "string", required: true }] } },
+      { id: "n4", type: "respond", position: { x: 720, y: 200 }, data: { label: "Respond 200", nodeType: "respond", statusCode: "200", responseBody: "{{$input}}" } },
+      { id: "n5", type: "respond", position: { x: 720, y: 380 }, data: { label: "Respond 422", nodeType: "respond", statusCode: "422", responseBody: "{{$input.error}}" } },
+    ],
+    edges: [
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4" },
+      { id: "e4", source: "n3", target: "n5", sourceHandle: "error" },
     ],
   },
 ];
@@ -166,8 +331,9 @@ router.post("/:id/use", async (req: AuthRequest, res) => {
   // Replace placeholder webhookIds with fresh UUIDs
   const { randomBytes } = await import("crypto");
   const nodes = tpl.nodes.map((n) => {
-    if ((n.data.nodeType === "webhookTrigger") && n.data.webhookId === "auto-replace") {
-      return { ...n, data: { ...n.data, webhookId: randomBytes(8).toString("hex") } };
+    const d = n.data as Record<string, unknown>;
+    if (d.nodeType === "webhookTrigger" && d.webhookId === "auto-replace") {
+      return { ...n, data: { ...d, webhookId: randomBytes(8).toString("hex") } };
     }
     return n;
   });

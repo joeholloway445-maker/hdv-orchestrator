@@ -42,7 +42,12 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
 
   // Pre-load global variables and attach to trigger data as $vars
   const $vars = await getGlobalVars(prisma, workflow.userId).catch(() => ({}));
-  triggerData = { ...triggerData, $vars };
+  triggerData = {
+    ...triggerData,
+    $vars,
+    $execution: { id: executionId, workflowId: workflow.id },
+    $workflow: { id: workflow.id, name: workflow.name },
+  };
 
   const children: Record<string, string[]> = {};
   const parents: Record<string, string[]> = {};
@@ -125,6 +130,17 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
         : filtered.length > 1
           ? { items: filtered }
           : triggerData;
+
+    // Build name→output map for $node.NodeName cross-references
+    const $nodeOutputs: Record<string, unknown> = {};
+    for (const n of nodes) {
+      if (outputs[n.id] !== undefined) {
+        const label = String(n.data?.label || n.data?.name || n.id);
+        $nodeOutputs[label] = outputs[n.id];
+        $nodeOutputs[n.id] = outputs[n.id];
+      }
+    }
+    $input.$nodeOutputs = $nodeOutputs;
 
     nodeStatus[nodeId] = "running";
     await pub(publisher, executionId, { type: "node-started", nodeId, nodeType });

@@ -24,6 +24,14 @@ import { executeHtmlExtract } from "./html";
 import { executeJsonPath } from "./jsonPath";
 import { executeStopError } from "./stopError";
 import { executeMerge } from "./merge";
+import { executeDatabase } from "./database";
+import { executeSlack } from "./slack";
+import { executeXml } from "./xml";
+import { executeRss } from "./rss";
+import { executeDeduplicate } from "./deduplicate";
+import { executeSort } from "./sort";
+import { executeLimit } from "./limit";
+import { executeRenameKeys } from "./renameKeys";
 
 interface NodeDef {
   id: string;
@@ -95,6 +103,22 @@ export async function executeNode(
       return executeCSV(node, $input);
     case "htmlExtract":
       return executeHtmlExtract(node, $input);
+    case "database":
+      return executeDatabase(node, $input);
+    case "slack":
+      return executeSlack(node, $input);
+    case "xml":
+      return executeXml(node, $input);
+    case "rss":
+      return executeRss(node, $input);
+    case "deduplicate":
+      return executeDeduplicate(node, $input);
+    case "sort":
+      return executeSort(node, $input);
+    case "limit":
+      return executeLimit(node, $input);
+    case "renameKeys":
+      return executeRenameKeys(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
     default:

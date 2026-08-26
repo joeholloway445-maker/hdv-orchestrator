@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHmac, timingSafeEqual } from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth";
 import { enqueueWorkflow } from "../queue/producer";
@@ -72,6 +73,22 @@ async function handleWebhook(req: import("express").Request, res: import("expres
       const token = authHeader.replace(/^Bearer\s+/i, "");
       const expected = triggerNode?.data?.authValue as string | undefined;
       if (!expected || token !== expected) return res.status(401).json({ error: "Unauthorized" });
+    } else if (authType === "hmac") {
+      // HMAC-SHA256: sender signs the raw body with the shared secret and puts the
+      // hex digest in a header (default: X-Hub-Signature-256, compatible with GitHub).
+      const secret = triggerNode?.data?.authValue as string | undefined;
+      const headerName = (triggerNode?.data?.authHeaderName as string) || "x-hub-signature-256";
+      const provided = String(req.headers[headerName.toLowerCase()] || "").replace(/^sha256=/i, "");
+      if (!secret || !provided) return res.status(401).json({ error: "Unauthorized" });
+      const rawBody = JSON.stringify(req.body); // express.json already parsed; re-serialize for signature check
+      const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+      let match = false;
+      try {
+        match = timingSafeEqual(Buffer.from(provided, "hex"), Buffer.from(expected, "hex"));
+      } catch {
+        match = false;
+      }
+      if (!match) return res.status(401).json({ error: "Unauthorized" });
     }
   }
 

@@ -7,9 +7,26 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req: AuthRequest, res) => {
-  const workflows = await prisma.workflow.findMany({
-    where: { userId: req.userId! },
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+  const search = req.query.search as string | undefined;
+  const tag = req.query.tag as string | undefined;
+  const active = req.query.active as string | undefined;
+
+  const where: Record<string, unknown> = { userId: req.userId! };
+  if (cursor) where.id = { lt: cursor };
+  if (active === "true") where.active = true;
+  if (active === "false") where.active = false;
+  if (search) where.OR = [
+    { name: { contains: search, mode: "insensitive" } },
+    { description: { contains: search, mode: "insensitive" } },
+  ];
+  if (tag) where.tags = { has: tag };
+
+  const workflows = await (prisma as any).workflow.findMany({
+    where,
     orderBy: { updatedAt: "desc" },
+    take: limit,
     include: {
       _count: { select: { executions: true } },
       executions: {
@@ -19,7 +36,8 @@ router.get("/", async (req: AuthRequest, res) => {
       },
     },
   });
-  res.json(workflows);
+  const nextCursor = workflows.length === limit ? workflows[workflows.length - 1].id : null;
+  res.json({ items: workflows, nextCursor });
 });
 
 router.post("/", async (req: AuthRequest, res) => {
@@ -193,6 +211,48 @@ router.post("/:id/test-node", async (req: AuthRequest, res) => {
   } catch {
     res.status(502).json({ error: "Worker unavailable — ensure the worker process is running" });
   }
+});
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+
+router.get("/:id/stats", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const [total, byStatus] = await Promise.all([
+    prisma.execution.count({ where: { workflowId: req.params.id } }),
+    prisma.execution.groupBy({
+      by: ["status"],
+      where: { workflowId: req.params.id },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const counts: Record<string, number> = {};
+  for (const row of byStatus) counts[row.status] = row._count._all;
+
+  const successRate = total > 0 ? ((counts["SUCCESS"] ?? 0) / total) * 100 : null;
+
+  // Compute average duration of successful executions (last 100)
+  const recentSuccessful = await prisma.execution.findMany({
+    where: { workflowId: req.params.id, status: "SUCCESS", finishedAt: { not: null } },
+    orderBy: { startedAt: "desc" },
+    take: 100,
+    select: { startedAt: true, finishedAt: true },
+  });
+  const durations = recentSuccessful
+    .filter((e: { finishedAt: Date | null; startedAt: Date }) => e.finishedAt)
+    .map((e: { finishedAt: Date | null; startedAt: Date }) => new Date(e.finishedAt!).getTime() - new Date(e.startedAt).getTime());
+  const avgDurationMs = durations.length > 0 ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length : null;
+
+  res.json({
+    total,
+    counts,
+    successRate: successRate !== null ? Math.round(successRate * 10) / 10 : null,
+    avgDurationMs: avgDurationMs !== null ? Math.round(avgDurationMs) : null,
+  });
 });
 
 export { router as workflowsRouter };

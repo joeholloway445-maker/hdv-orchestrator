@@ -6,25 +6,32 @@ import { enqueueWorkflow } from "../queue/producer";
 const router = Router();
 const prisma = new PrismaClient();
 
-// All executions for this user (paginated)
+// All executions for this user (paginated, filterable)
 router.get("/", async (req: AuthRequest, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const cursor = req.query.cursor as string | undefined;
+  const statusFilter = req.query.status as string | undefined;
+  const workflowIdFilter = req.query.workflowId as string | undefined;
 
   // Get all workflow IDs for this user first
   const workflows = await prisma.workflow.findMany({
-    where: { userId: req.userId! },
+    where: { userId: req.userId!, ...(workflowIdFilter ? { id: workflowIdFilter } : {}) },
     select: { id: true },
   });
-  const workflowIds = workflows.map((w) => w.id);
+  const workflowIds = workflows.map((w: { id: string }) => w.id);
+
+  const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
+  if (cursor) where.id = { lt: cursor };
+  if (statusFilter) where.status = statusFilter;
 
   const executions = await prisma.execution.findMany({
-    where: { workflowId: { in: workflowIds }, ...(cursor ? { id: { lt: cursor } } : {}) },
+    where: where as never,
     orderBy: { startedAt: "desc" },
     take: limit,
     include: { workflow: { select: { id: true, name: true } } },
   });
-  res.json(executions);
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
 });
 
 router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
@@ -33,12 +40,16 @@ router.get("/workflow/:workflowId", async (req: AuthRequest, res) => {
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
   const executions = await prisma.execution.findMany({
-    where: { workflowId: req.params.workflowId },
+    where: { workflowId: req.params.workflowId, ...(cursor ? { id: { lt: cursor } } : {}) },
     orderBy: { startedAt: "desc" },
-    take: 50,
+    take: limit,
   });
-  res.json(executions);
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
 });
 
 router.get("/:id", async (req: AuthRequest, res) => {
@@ -60,7 +71,7 @@ router.delete("/", async (req: AuthRequest, res) => {
     where: { userId: req.userId! },
     select: { id: true },
   });
-  const workflowIds = workflows.map((w) => w.id);
+  const workflowIds = workflows.map((w: { id: string }) => w.id);
 
   const where: Record<string, unknown> = { workflowId: { in: workflowIds } };
 
@@ -73,7 +84,7 @@ router.delete("/", async (req: AuthRequest, res) => {
     where.startedAt = { lt: cutoff };
   }
 
-  const { count } = await prisma.execution.deleteMany({ where: where as Parameters<typeof prisma.execution.deleteMany>[0]["where"] });
+  const { count } = await prisma.execution.deleteMany({ where: where as never });
   res.json({ deleted: count });
 });
 
@@ -104,6 +115,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     where: { id: req.params.id },
     data: { data: { ...existing, note } },
     include: { nodeLogs: { orderBy: { startedAt: "asc" } } },
+  });
+  res.json(updated);
+});
+
+// Cancel a running/pending execution — marks it FAILED immediately
+router.post("/:id/cancel", async (req: AuthRequest, res) => {
+  const execution = await prisma.execution.findUnique({
+    where: { id: req.params.id },
+    include: { workflow: { select: { userId: true } } },
+  });
+  if (!execution) return res.status(404).json({ error: "Not found" });
+  if (execution.workflow.userId !== req.userId!) return res.status(403).json({ error: "Forbidden" });
+  if (execution.status !== "RUNNING" && execution.status !== "PENDING") {
+    return res.status(409).json({ error: `Execution is already ${execution.status}` });
+  }
+  const updated = await prisma.execution.update({
+    where: { id: req.params.id },
+    data: { status: "FAILED", finishedAt: new Date(), data: { error: "Cancelled by user" } },
   });
   res.json(updated);
 });

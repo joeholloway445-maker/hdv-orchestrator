@@ -430,17 +430,18 @@ export function NodeConfigPanel({
                     <option value="apikey">API Key (header)</option>
                     <option value="basic">Basic Auth (user:pass)</option>
                     <option value="bearer">Bearer Token</option>
+                    <option value="hmac">HMAC-SHA256 (GitHub-compatible)</option>
                   </select>
                 </div>
-                {local.authType === "apikey" && (
+                {(local.authType === "apikey" || local.authType === "hmac") && (
                   <div className="mt-2">
-                    <label className={labelCls}>Header Name</label>
-                    <input className={inputCls} value={(local.authHeaderName as string) || "X-API-Key"} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder="X-API-Key" />
+                    <label className={labelCls}>{local.authType === "hmac" ? "Signature Header" : "Header Name"}</label>
+                    <input className={inputCls} value={(local.authHeaderName as string) || (local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key")} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder={local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key"} />
                   </div>
                 )}
                 {local.authType && local.authType !== "none" && (
                   <div className="mt-2">
-                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : "Secret Value"}</label>
+                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : local.authType === "hmac" ? "HMAC Secret" : "Secret Value"}</label>
                     <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={local.authType === "basic" ? "username:password" : "secret"} />
                   </div>
                 )}
@@ -640,6 +641,8 @@ export function NodeConfigPanel({
                 { v: "notContains", l: "does not contain" },
                 { v: "startsWith", l: "starts with" },
                 { v: "endsWith", l: "ends with" },
+                { v: "matches", l: "~ matches regex" },
+                { v: "notMatches", l: "!~ does not match regex" },
                 { v: "gt", l: "> greater than" },
                 { v: "lt", l: "< less than" },
                 { v: "gte", l: "≥ ≥" },
@@ -741,6 +744,10 @@ export function NodeConfigPanel({
                     <button onClick={() => patch({ mappings: [...mappings, { key: "", value: "" }] })} className="text-blue-400 text-xs hover:underline">+ Add mapping</button>
                   </div>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!local.parallel} onChange={(e) => patch({ parallel: e.target.checked })} />
+                  <span className={labelCls + " mb-0"}>Parallel execution (Promise.all)</span>
+                </label>
               </>
             )}
 
@@ -760,6 +767,7 @@ export function NodeConfigPanel({
                 { v: "equals", l: "= equals" }, { v: "notEquals", l: "≠ not equals" },
                 { v: "contains", l: "contains" }, { v: "notContains", l: "does not contain" },
                 { v: "startsWith", l: "starts with" }, { v: "endsWith", l: "ends with" },
+                { v: "matches", l: "~ matches regex" }, { v: "notMatches", l: "!~ does not match regex" },
                 { v: "gt", l: "> greater than" }, { v: "lt", l: "< less than" },
                 { v: "gte", l: "≥ ≥" }, { v: "lte", l: "≤ ≤" },
                 { v: "exists", l: "exists" }, { v: "notExists", l: "does not exist" },
@@ -1295,6 +1303,245 @@ export function NodeConfigPanel({
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!local.includeInput} onChange={(e) => patch({ includeInput: e.target.checked })} />
                   <span className={labelCls + " mb-0"}>Include input in error message</span>
+                </label>
+              </div>
+            )}
+
+            {/* Database Node */}
+            {nodeType === "database" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Dialect</label>
+                  <select className={inputCls} value={(local.dialect as string) || "postgres"} onChange={(e) => patch({ dialect: e.target.value })}>
+                    <option value="postgres">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Host</label>
+                  <input className={inputCls} value={(local.host as string) || ""} onChange={(e) => patch({ host: e.target.value })} placeholder="localhost" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelCls}>Port</label>
+                    <input className={inputCls} type="number" value={(local.port as string) || ""} onChange={(e) => patch({ port: e.target.value })} placeholder="5432" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Database</label>
+                    <input className={inputCls} value={(local.database as string) || ""} onChange={(e) => patch({ database: e.target.value })} placeholder="mydb" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelCls}>User</label>
+                    <input className={inputCls} value={(local.user as string) || ""} onChange={(e) => patch({ user: e.target.value })} placeholder="postgres" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Password</label>
+                    <input className={inputCls} type="password" value={(local.password as string) || ""} onChange={(e) => patch({ password: e.target.value })} placeholder="••••••••" />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>SQL Query (supports {"{{expressions}}"})</label>
+                  <textarea className={inputCls + " resize-y font-mono text-xs"} rows={5} value={(local.query as string) || ""} onChange={(e) => patch({ query: e.target.value })} placeholder={"SELECT * FROM users WHERE id = '{{$input.userId}}'"} />
+                </div>
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={(local.operation as string) || "query"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="query">Query (returns rows)</option>
+                    <option value="execute">Execute (no rows)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Slack Node */}
+            {nodeType === "slack" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Webhook URL</label>
+                  <input className={inputCls} type="password" value={(local.webhookUrl as string) || ""} onChange={(e) => patch({ webhookUrl: e.target.value })} placeholder="https://hooks.slack.com/services/..." />
+                </div>
+                <div>
+                  <label className={labelCls}>Message Text (supports {"{{expressions}}"})</label>
+                  <ExpressionInput value={(local.text as string) || ""} onChange={(v) => patch({ text: v })} placeholder={"Hello from {{$input.name}}!"} suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Channel (optional)</label>
+                  <input className={inputCls} value={(local.channel as string) || ""} onChange={(e) => patch({ channel: e.target.value })} placeholder="#general" />
+                </div>
+                <div>
+                  <label className={labelCls}>Bot Username (optional)</label>
+                  <input className={inputCls} value={(local.username as string) || ""} onChange={(e) => patch({ username: e.target.value })} placeholder="Workflow Bot" />
+                </div>
+                <div>
+                  <label className={labelCls}>Icon Emoji (optional)</label>
+                  <input className={inputCls} value={(local.iconEmoji as string) || ""} onChange={(e) => patch({ iconEmoji: e.target.value })} placeholder=":robot_face:" />
+                </div>
+              </div>
+            )}
+
+            {/* XML Node */}
+            {nodeType === "xml" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Operation</label>
+                  <select className={inputCls} value={(local.operation as string) || "parse"} onChange={(e) => patch({ operation: e.target.value })}>
+                    <option value="parse">Parse XML → Object</option>
+                    <option value="stringify">Stringify Object → XML</option>
+                    <option value="toArray">XML → Item Array</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Input Field</label>
+                  <input className={inputCls} value={(local.inputField as string) || "body"} onChange={(e) => patch({ inputField: e.target.value })} placeholder="body" />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || "data"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="data" />
+                </div>
+                {(local.operation === "stringify") && (
+                  <div>
+                    <label className={labelCls}>Root Tag</label>
+                    <input className={inputCls} value={(local.rootTag as string) || "root"} onChange={(e) => patch({ rootTag: e.target.value })} placeholder="root" />
+                  </div>
+                )}
+                {(local.operation === "toArray") && (
+                  <div>
+                    <label className={labelCls}>Item Tag</label>
+                    <input className={inputCls} value={(local.itemTag as string) || "item"} onChange={(e) => patch({ itemTag: e.target.value })} placeholder="item" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* RSS Node */}
+            {nodeType === "rss" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Feed URL</label>
+                  <ExpressionInput value={(local.url as string) || ""} onChange={(v) => patch({ url: v })} placeholder="https://example.com/feed.xml" suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Output Field</label>
+                  <input className={inputCls} value={(local.outputField as string) || "items"} onChange={(e) => patch({ outputField: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Max Items (0 = all)</label>
+                  <input className={inputCls} type="number" min={0} value={(local.limit as string) || "0"} onChange={(e) => patch({ limit: e.target.value })} placeholder="0" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="rss-channel" checked={local.includeChannel !== false} onChange={(e) => patch({ includeChannel: e.target.checked })} />
+                  <label htmlFor="rss-channel" className="text-xs text-gray-300">Include channel metadata</label>
+                </div>
+              </div>
+            )}
+
+            {/* Deduplicate Node */}
+            {nodeType === "deduplicate" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Dedupe Field (dot-path, blank = whole item)</label>
+                  <input className={inputCls} value={(local.dedupeField as string) || ""} onChange={(e) => patch({ dedupeField: e.target.value })} placeholder="id" />
+                </div>
+                <div>
+                  <label className={labelCls}>Strategy</label>
+                  <select className={inputCls} value={(local.strategy as string) || "removeSubsequent"} onChange={(e) => patch({ strategy: e.target.value })}>
+                    <option value="removeSubsequent">Remove Subsequent (keep first)</option>
+                    <option value="keepLast">Keep Last</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Sort Node */}
+            {nodeType === "sort" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Sort Field (dot-path, blank = whole item)</label>
+                  <input className={inputCls} value={(local.sortField as string) || ""} onChange={(e) => patch({ sortField: e.target.value })} placeholder="createdAt" />
+                </div>
+                <div>
+                  <label className={labelCls}>Direction</label>
+                  <select className={inputCls} value={(local.direction as string) || "asc"} onChange={(e) => patch({ direction: e.target.value })}>
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Limit Node */}
+            {nodeType === "limit" && (
+              <div className="space-y-2">
+                <div>
+                  <label className={labelCls}>Array Key</label>
+                  <input className={inputCls} value={(local.arrayKey as string) || "items"} onChange={(e) => patch({ arrayKey: e.target.value })} placeholder="items" />
+                </div>
+                <div>
+                  <label className={labelCls}>Max Items</label>
+                  <input className={inputCls} type="number" min={1} value={(local.maxItems as string) || "10"} onChange={(e) => patch({ maxItems: e.target.value })} placeholder="10" />
+                </div>
+                <div>
+                  <label className={labelCls}>Keep From</label>
+                  <select className={inputCls} value={(local.keepFrom as string) || "start"} onChange={(e) => patch({ keepFrom: e.target.value })}>
+                    <option value="start">Start of array</option>
+                    <option value="end">End of array</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Rename Keys Node */}
+            {nodeType === "renameKeys" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Key Mappings</label>
+                  <button
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                    onClick={() => patch({ mappings: [...((local.mappings as Array<{ from: string; to: string }>) || []), { from: "", to: "" }] })}
+                  >+ Add</button>
+                </div>
+                {((local.mappings as Array<{ from: string; to: string }>) || []).map((m, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="old.key"
+                      value={m.from}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
+                        n[i] = { ...n[i], from: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <span className="text-gray-400 text-xs">→</span>
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="new.key"
+                      value={m.to}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
+                        n[i] = { ...n[i], to: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <button
+                      className="text-gray-500 hover:text-red-400 px-1 text-sm"
+                      onClick={() => patch({ mappings: ((local.mappings as Array<{ from: string; to: string }>) || []).filter((_, j) => j !== i) })}
+                    >×</button>
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                  <input type="checkbox" checked={local.removeOldKeys !== false} onChange={(e) => patch({ removeOldKeys: e.target.checked })} className="accent-blue-500" />
+                  <span className="text-xs text-gray-300">Remove original keys</span>
                 </label>
               </div>
             )}
