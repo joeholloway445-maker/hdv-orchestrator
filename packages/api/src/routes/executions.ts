@@ -2,13 +2,14 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth";
 import { enqueueWorkflow } from "../queue/producer";
+import { parsePagination } from "../lib/paginate";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // All executions for this user (paginated, filterable)
 router.get("/", async (req: AuthRequest, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const { limit } = parsePagination(req.query as Record<string, unknown>);
   const cursor = req.query.cursor as string | undefined;
   const statusFilter = req.query.status as string | undefined;
   const workflowIdFilter = req.query.workflowId as string | undefined;

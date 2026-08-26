@@ -16,7 +16,11 @@ router.get("/", async (req: AuthRequest, res) => {
 
 router.post("/", async (req: AuthRequest, res) => {
   const { name, type, data } = req.body as { name: string; type: string; data: Record<string, unknown> };
-  if (!name || !type) return res.status(400).json({ error: "name and type are required" });
+  if (!name || typeof name !== "string" || !name.trim()) return res.status(400).json({ error: "name is required" });
+  if (!type || typeof type !== "string" || !type.trim()) return res.status(400).json({ error: "type is required" });
+  if (data === undefined || data === null || typeof data !== "object" || Array.isArray(data)) {
+    return res.status(400).json({ error: "data must be an object" });
+  }
   const cred = await prisma.credential.create({
     data: { userId: req.userId!, name, type, data: encrypt(JSON.stringify(data ?? {})) },
   });

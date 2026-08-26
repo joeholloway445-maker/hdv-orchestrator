@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuthStore } from "../store/auth";
 import { DreamGenerator } from "../components/DreamGenerator";
+import { StatusChip } from "../components/StatusChip";
+import { TimeAgo } from "../components/TimeAgo";
 
 interface Workflow {
   id: string;
@@ -15,6 +17,28 @@ interface Workflow {
   executions?: Array<{ status: string; startedAt: string }>;
 }
 
+interface ExecutionRow {
+  id: string;
+  status: string;
+  startedAt: string;
+  finishedAt?: string;
+  workflowId: string;
+  workflow?: { id: string; name: string };
+}
+
+interface ScheduleEntry {
+  workflowId: string;
+  active: boolean;
+  cronExpression: string;
+}
+
+interface DashboardStats {
+  totalWorkflows: number;
+  activeSchedules: number;
+  executionsToday: number;
+  recentExecutions: ExecutionRow[];
+}
+
 export function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,10 +46,39 @@ export function DashboardPage() {
   const [tagFilter, setTagFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [showDreamGenerator, setShowDreamGenerator] = useState(false);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
+
+  async function fetchStats() {
+    try {
+      const [execRes, schedRes] = await Promise.all([
+        api.get("/executions?limit=100"),
+        api.get("/schedules"),
+      ]);
+      const execPayload = execRes.data as { items?: ExecutionRow[] } | ExecutionRow[];
+      const allExecs: ExecutionRow[] = Array.isArray(execPayload)
+        ? execPayload
+        : (execPayload.items ?? []);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const executionsToday = allExecs.filter(
+        (e) => new Date(e.startedAt) >= todayStart
+      ).length;
+      const schedules = (schedRes.data as ScheduleEntry[]) || [];
+      const activeSchedules = schedules.filter((s) => s.active).length;
+      setStats({
+        totalWorkflows: 0, // will be set when workflows load
+        activeSchedules,
+        executionsToday,
+        recentExecutions: allExecs.slice(0, 5),
+      });
+    } catch {
+      // stats are non-critical; fail silently
+    }
+  }
 
   async function importWorkflow() {
     const input = document.createElement("input");
@@ -64,6 +117,16 @@ export function DashboardPage() {
     debounceRef.current = setTimeout(() => fetchWorkflows(search, tagFilter, activeFilter), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search, tagFilter, activeFilter]);
+
+  // Update totalWorkflows whenever the workflows list changes
+  useEffect(() => {
+    if (workflows.length > 0) {
+      setStats((prev) => prev ? { ...prev, totalWorkflows: workflows.length } : prev);
+    }
+  }, [workflows.length]);
+
+  // Fetch stats once on mount
+  useEffect(() => { fetchStats(); }, []);
 
   async function createWorkflow() {
     const { data } = await api.post("/workflows", { name: "Untitled Workflow" });
@@ -177,6 +240,55 @@ export function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
+        {/* Stats overview */}
+        {stats && (
+          <div className="mb-8 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="bg-[#0E1524] border border-[#1e2d4a] rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Workflows</p>
+                <p className="text-3xl font-bold text-white">{stats.totalWorkflows || workflows.length}</p>
+              </div>
+              <div className="bg-[#0E1524] border border-[#1e2d4a] rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Active Schedules</p>
+                <p className="text-3xl font-bold text-[#3B6FFF]">{stats.activeSchedules}</p>
+              </div>
+              <div className="bg-[#0E1524] border border-[#1e2d4a] rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Executions Today</p>
+                <p className="text-3xl font-bold text-green-400">{stats.executionsToday}</p>
+              </div>
+            </div>
+
+            {stats.recentExecutions.length > 0 && (
+              <div className="bg-[#0E1524] border border-[#1e2d4a] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-300">Recent Executions</h3>
+                  <button
+                    onClick={() => navigate("/executions")}
+                    className="text-xs text-[#3B6FFF] hover:underline"
+                  >
+                    View all →
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {stats.recentExecutions.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => navigate(`/executions/${e.id}`)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#111d32] transition-colors text-left"
+                    >
+                      <StatusChip status={e.status} />
+                      <span className="flex-1 text-sm text-gray-300 truncate">
+                        {e.workflow?.name ?? e.workflowId.slice(0, 12)}
+                      </span>
+                      <TimeAgo date={e.startedAt} className="text-xs text-gray-500 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">My Workflows</h2>
           <div className="flex gap-2">

@@ -3,7 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workflow Platform</title>
+    <title>VISION – Workflow Automation</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#3B6FFF" />
+
+    <!-- Apple PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VISION" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!--
+      icon-192.png and icon-512.png should be generated from public/icon.svg before deployment.
+      Example (requires sharp-cli or Inkscape):
+        npx svgexport public/icon.svg public/icon-192.png 192:192
+        npx svgexport public/icon.svg public/icon-512.png 512:512
+    -->
   </head>
   <body>
     <div id="root"></div>

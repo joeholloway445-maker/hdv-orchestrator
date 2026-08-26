@@ -2,12 +2,13 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth";
 import { enqueueWorkflow } from "../queue/producer";
+import { parsePagination } from "../lib/paginate";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req: AuthRequest, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const { limit } = parsePagination(req.query as Record<string, unknown>);
   const cursor = req.query.cursor as string | undefined;
   const search = req.query.search as string | undefined;
   const tag = req.query.tag as string | undefined;
@@ -42,9 +43,18 @@ router.get("/", async (req: AuthRequest, res) => {
 
 router.post("/", async (req: AuthRequest, res) => {
   const { name, nodes, edges } = req.body;
+  if (name !== undefined && (typeof name !== "string" || name.trim().length === 0 || name.length > 200)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
+  if (nodes !== undefined && !Array.isArray(nodes)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
+  if (edges !== undefined && !Array.isArray(edges)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
   const workflow = await prisma.workflow.create({
     data: {
-      name: name || "Untitled Workflow",
+      name: (typeof name === "string" && name.trim()) ? name.trim() : "Untitled Workflow",
       userId: req.userId!,
       nodes: nodes || [],
       edges: edges || [],
@@ -63,6 +73,15 @@ router.get("/:id", async (req: AuthRequest, res) => {
 
 router.put("/:id", async (req: AuthRequest, res) => {
   const { name, nodes, edges, active, errorWorkflowId, timeoutMs, tags, maxConcurrency, description } = req.body;
+  if (name !== undefined && (typeof name !== "string" || name.trim().length === 0 || name.length > 200)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
+  if (nodes !== undefined && !Array.isArray(nodes)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
+  if (edges !== undefined && !Array.isArray(edges)) {
+    return res.status(400).json({ error: "Invalid workflow data" });
+  }
   const workflow = await prisma.workflow.findFirst({
     where: { id: req.params.id, userId: req.userId! },
   });
