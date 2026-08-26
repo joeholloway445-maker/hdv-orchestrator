@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { InputJsonValue } from "@prisma/client/runtime/library";
 import { AuthRequest } from "../middleware/auth";
 
 const router = Router();
@@ -19,8 +20,8 @@ router.put("/:key", async (req: AuthRequest, res) => {
   const scopeId = workflowId ?? "";
   const item = await prisma.userMemory.upsert({
     where: { userId_key_workflowId: { userId: req.userId!, key: req.params.key, workflowId: scopeId } },
-    create: { userId: req.userId!, key: req.params.key, value, workflowId: scopeId },
-    update: { value },
+    create: { userId: req.userId!, key: req.params.key, value: value as InputJsonValue, workflowId: scopeId },
+    update: { value: value as InputJsonValue },
   });
   res.json(item);
 });
