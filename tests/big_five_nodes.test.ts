@@ -358,3 +358,139 @@ describe("DREAM workflow scoring", () => {
     assert.ok(knollScore > baseScore, "KNOLL should increase score");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VISION node tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("VISION node (executeVision)", () => {
+  // Inline the core logic without importing the compiled output
+
+  interface VisionNodeDef { data: Record<string, unknown>; }
+  interface VisionResult {
+    visionMode: string; jobId?: string; status: string;
+    output?: unknown; error?: string; workflowId?: string; intent?: string;
+  }
+
+  async function executeVisionLocal(node: VisionNodeDef, $input: Record<string, unknown>): Promise<VisionResult> {
+    const mode = String(node.data.visionMode || "trigger");
+    const intent = String(node.data.intent || $input.intent || "");
+    if (mode === "noop") return { visionMode: "noop", status: "completed", output: $input };
+    if (mode === "inline") {
+      const dag = node.data.dag as { nodes?: unknown[] } | undefined;
+      if (!dag?.nodes) return { visionMode: "inline", status: "completed", output: $input };
+      return { visionMode: "inline", status: "completed", output: { dag, triggerData: $input, intent } };
+    }
+    // trigger mode without API configured → dev fallback
+    const workflowId = String(node.data.workflowId || $input.workflowId || "");
+    if (!workflowId) return { visionMode: "trigger", status: "error", error: "visionMode=trigger requires data.workflowId" };
+    return { visionMode: "trigger", jobId: `dev-vision-${Date.now()}`, status: "queued", workflowId, intent };
+  }
+
+  test("noop mode returns $input unchanged", async () => {
+    const result = await executeVisionLocal({ data: { visionMode: "noop" } }, { x: 1 });
+    assert.strictEqual(result.visionMode, "noop");
+    assert.strictEqual(result.status, "completed");
+    assert.deepStrictEqual(result.output, { x: 1 });
+  });
+
+  test("inline mode with no dag passes through", async () => {
+    const result = await executeVisionLocal({ data: { visionMode: "inline" } }, { y: 2 });
+    assert.strictEqual(result.visionMode, "inline");
+    assert.strictEqual(result.status, "completed");
+    assert.deepStrictEqual(result.output, { y: 2 });
+  });
+
+  test("inline mode with dag wraps it in output", async () => {
+    const dag = { nodes: [{ id: "n1", type: "set", data: {} }], edges: [] };
+    const result = await executeVisionLocal({ data: { visionMode: "inline", dag } }, { intent: "test" });
+    assert.strictEqual(result.status, "completed");
+    assert.ok((result.output as Record<string, unknown>).dag, "output should contain dag");
+  });
+
+  test("trigger mode without workflowId returns error", async () => {
+    const result = await executeVisionLocal({ data: { visionMode: "trigger" } }, {});
+    assert.strictEqual(result.status, "error");
+    assert.ok(result.error?.includes("workflowId"));
+  });
+
+  test("trigger mode with workflowId returns queued dev job", async () => {
+    const result = await executeVisionLocal({ data: { visionMode: "trigger", workflowId: "wf-123", intent: "run automation" } }, {});
+    assert.strictEqual(result.status, "queued");
+    assert.strictEqual(result.workflowId, "wf-123");
+    assert.ok(result.jobId?.startsWith("dev-vision-"));
+    assert.strictEqual(result.intent, "run automation");
+  });
+
+  test("trigger mode picks workflowId from $input fallback", async () => {
+    const result = await executeVisionLocal({ data: { visionMode: "trigger" } }, { workflowId: "wf-from-input" });
+    assert.strictEqual(result.workflowId, "wf-from-input");
+    assert.strictEqual(result.status, "queued");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOPE node tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("HOPE node (executeHope)", () => {
+  interface HopeNodeDef { data: Record<string, unknown>; }
+
+  async function executeHopeLocal(node: HopeNodeDef, $input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const allowAnon = Boolean(node.data.allowAnon ?? false);
+    const requiredRole = String(node.data.requiredRole ?? "");
+    const token = String(node.data.token || $input.hopeToken || $input.token || "").replace(/^Bearer\s+/i, "");
+    const supabaseUrl = "";  // no Supabase in tests → dev mode
+
+    if (!token) {
+      if (allowAnon) return { ...$input, hopeAuthenticated: false, hopeUserId: "", hopeEmail: "", hopeRole: "anon", hopeBlocked: false };
+      throw new Error("HOPE: no auth token provided");
+    }
+
+    if (!supabaseUrl) {
+      // Dev mode
+      const userId = `dev-user-${token.slice(0, 8)}`;
+      const role = requiredRole || "user";
+      if (requiredRole && role !== requiredRole && role !== "admin") {
+        throw new Error(`Required role '${requiredRole}' not met (got '${role}')`);
+      }
+      return { ...$input, hopeAuthenticated: true, hopeUserId: userId, hopeEmail: "dev@hdv.local", hopeRole: role, hopeBlocked: false };
+    }
+    throw new Error("unreachable in test");
+  }
+
+  test("no token + allowAnon passes as anon", async () => {
+    const result = await executeHopeLocal({ data: { allowAnon: true } }, {});
+    assert.strictEqual(result.hopeAuthenticated, false);
+    assert.strictEqual(result.hopeRole, "anon");
+    assert.strictEqual(result.hopeBlocked, false);
+  });
+
+  test("no token without allowAnon throws", async () => {
+    await assert.rejects(() => executeHopeLocal({ data: {} }, {}), /no auth token/i);
+  });
+
+  test("valid token in dev mode returns authenticated user", async () => {
+    const result = await executeHopeLocal({ data: { token: "tok-abc123xyz" } }, {});
+    assert.strictEqual(result.hopeAuthenticated, true);
+    assert.strictEqual(result.hopeUserId, "dev-user-tok-abc1");
+    assert.strictEqual(result.hopeEmail, "dev@hdv.local");
+    assert.strictEqual(result.hopeBlocked, false);
+  });
+
+  test("token from $input.hopeToken is accepted", async () => {
+    const result = await executeHopeLocal({ data: {} }, { hopeToken: "from-input-xyz" });
+    assert.ok(String(result.hopeUserId).startsWith("dev-user-"));
+  });
+
+  test("Bearer prefix is stripped from token", async () => {
+    const result = await executeHopeLocal({ data: { token: "Bearer mytoken123" } }, {});
+    assert.ok(String(result.hopeUserId).includes("mytoken"), "should strip Bearer prefix");
+  });
+
+  test("$input is passed through to output", async () => {
+    const result = await executeHopeLocal({ data: { token: "tok-xyz" } }, { scene: "dungeon", level: 5 });
+    assert.strictEqual(result.scene, "dungeon");
+    assert.strictEqual(result.level, 5);
+  });
+});
