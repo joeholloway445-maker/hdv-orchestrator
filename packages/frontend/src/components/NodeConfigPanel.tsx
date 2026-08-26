@@ -441,8 +441,8 @@ export function NodeConfigPanel({
                 )}
                 {!!(local.authType as string) && (local.authType as string) !== "none" && (
                   <div className="mt-2">
-                    <label className={labelCls}>{(local.authType as string) === "basic" ? "user:password" : (local.authType as string) === "hmac" ? "HMAC Secret" : "Secret Value"}</label>
-                    <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={(local.authType as string) === "basic" ? "username:password" : "secret"} />
+                    <label className={labelCls}>{local.authType === "basic" ? "user:password" : local.authType === "hmac" ? "HMAC Secret" : "Secret Value"}</label>
+                    <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={local.authType === "basic" ? "username:password" : "secret"} />
                   </div>
                 )}
               </div>
@@ -1508,57 +1508,50 @@ export function NodeConfigPanel({
             )}
 
             {/* Rename Keys Node */}
-            {nodeType === "renameKeys" && (() => {
-              type RenameEntry = { from: string; to: string };
-              const renameMappings: RenameEntry[] = (local.renameMappings as RenameEntry[]) || [];
-              function patchRename(next: RenameEntry[]) {
-                patch({ renameMappings: next as unknown as Array<{ key: string; value: string }> });
-              }
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className={labelCls}>Key Mappings</label>
-                    <button
-                      className="text-xs text-blue-400 hover:text-blue-300"
-                      onClick={() => patchRename([...renameMappings, { from: "", to: "" }])}
-                    >+ Add</button>
-                  </div>
-                  {renameMappings.map((m, i) => (
-                    <div key={i} className="flex gap-1 items-center">
-                      <input
-                        className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
-                        placeholder="old.key"
-                        value={m.from}
-                        onChange={(e) => {
-                          const n = [...renameMappings];
-                          n[i] = { ...n[i], from: e.target.value };
-                          patchRename(n);
-                        }}
-                      />
-                      <span className="text-gray-400 text-xs">→</span>
-                      <input
-                        className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
-                        placeholder="new.key"
-                        value={m.to}
-                        onChange={(e) => {
-                          const n = [...renameMappings];
-                          n[i] = { ...n[i], to: e.target.value };
-                          patchRename(n);
-                        }}
-                      />
-                      <button
-                        className="text-gray-500 hover:text-red-400 px-1 text-sm"
-                        onClick={() => patchRename(renameMappings.filter((_, j) => j !== i))}
-                      >×</button>
-                    </div>
-                  ))}
-                  <label className="flex items-center gap-2 mt-1 cursor-pointer">
-                    <input type="checkbox" checked={local.removeOldKeys !== false} onChange={(e) => patch({ removeOldKeys: e.target.checked })} className="accent-blue-500" />
-                    <span className="text-xs text-gray-300">Remove original keys</span>
-                  </label>
+            {nodeType === "renameKeys" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Key Mappings</label>
+                  <button
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                    onClick={() => patch({ mappings: [...((local.mappings as Array<{ key: string; value: string }>) || []), { key: "", value: "" }] })}
+                  >+ Add</button>
                 </div>
-              );
-            })()}
+                {((local.mappings as Array<{ key: string; value: string }>) || []).map((m, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="old.key"
+                      value={m.key}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ key: string; value: string }>) || [])];
+                        n[i] = { ...n[i], key: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <span className="text-gray-400 text-xs">→</span>
+                    <input
+                      className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                      placeholder="new.key"
+                      value={m.value}
+                      onChange={(e) => {
+                        const n = [...((local.mappings as Array<{ key: string; value: string }>) || [])];
+                        n[i] = { ...n[i], value: e.target.value };
+                        patch({ mappings: n });
+                      }}
+                    />
+                    <button
+                      className="text-gray-500 hover:text-red-400 px-1 text-sm"
+                      onClick={() => patch({ mappings: ((local.mappings as Array<{ key: string; value: string }>) || []).filter((_, j) => j !== i) })}
+                    >×</button>
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                  <input type="checkbox" checked={local.removeOldKeys !== false} onChange={(e) => patch({ removeOldKeys: e.target.checked })} className="accent-blue-500" />
+                  <span className="text-xs text-gray-300">Remove original keys</span>
+                </label>
+              </div>
+            )}
 
             {/* KNOLL Security Sentinel */}
             {nodeType === "knoll" && (

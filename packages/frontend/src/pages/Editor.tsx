@@ -182,10 +182,6 @@ export function EditorPage() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  // Track whether the workflow has been loaded (skip auto-save until then)
-  const loadedRef = useRef(false);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Undo/redo history
   const historyRef = useRef<Array<{ nodes: Node<NodeData>[]; edges: Edge[] }>>([]);
   const historyIdxRef = useRef(-1);
@@ -233,33 +229,6 @@ export function EditorPage() {
     }
   }, [nodes, edges]);
 
-  // Debounced auto-save — fires 800 ms after the last node/edge change
-  useEffect(() => {
-    if (!loadedRef.current) return;
-    if (!id) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(async () => {
-      try {
-        await api.put(`/workflows/${id}`, {
-          nodes,
-          edges,
-          name: workflow?.name,
-          active: workflow?.active,
-          tags: workflow?.tags ?? [],
-          errorWorkflowId: workflow?.errorWorkflowId || null,
-          timeoutMs: workflow?.timeoutMs ?? null,
-          maxConcurrency: workflow?.maxConcurrency ?? null,
-          description: workflow?.description ?? null,
-        });
-      } catch {
-        // Silent — auto-save failures don't block the user
-      }
-    }, 800);
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, [nodes, edges]);
-
   function duplicateSelected() {
     if (!selectedNode) return;
     const newNode: Node<NodeData> = {
@@ -285,14 +254,11 @@ export function EditorPage() {
   }, [selectedNode]);
 
   useEffect(() => {
-    loadedRef.current = false;
     api.get(`/workflows/${id}`).then(({ data }) => {
       const wf = data as WorkflowRecord;
       setWorkflow(wf);
       setNodes((wf.nodes as Node<NodeData>[]) || []);
       setEdges((wf.edges as Edge[]) || []);
-      // Allow auto-save only after initial data is set
-      setTimeout(() => { loadedRef.current = true; }, 100);
     });
     api.get(`/executions/workflow/${id}`).then(async ({ data }) => {
       const execs: ExecutionRecord[] = Array.isArray(data) ? data : ((data as { items?: ExecutionRecord[] }).items ?? []);
@@ -337,23 +303,6 @@ export function EditorPage() {
       } else if (event.type === "execution-failed") {
         setExecuting(false);
         refreshExecutions();
-      }
-    });
-
-    // Also listen on the task-spec event name so both backend conventions are covered
-    socket.on("execution:nodeStatus", (payload: { executionId: string; nodeId: string; status: string; output?: unknown }) => {
-      const { nodeId, status, output } = payload;
-      if (!nodeId) return;
-      const s = (status ?? "").toLowerCase();
-      if (s === "running") {
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "running" }));
-      } else if (s === "success" || s === "finished" || s === "complete") {
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "success" }));
-        if (output !== undefined) setNodeOutputs((prev) => ({ ...prev, [nodeId]: output }));
-      } else if (s === "error" || s === "failed" || s === "fail") {
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "error" }));
-      } else if (s === "skipped") {
-        setNodeStatuses((prev) => ({ ...prev, [nodeId]: "skipped" }));
       }
     });
 
@@ -432,9 +381,6 @@ export function EditorPage() {
   };
 
   function onPaneDoubleClick(e: React.MouseEvent) {
-    // Only trigger on the ReactFlow canvas background, not on nodes
-    const target = e.target as HTMLElement;
-    if (target.closest(".react-flow__node")) return;
     if (!rfInstance || !wrapperRef.current) return;
     const bounds = wrapperRef.current.getBoundingClientRect();
     const flowPos = rfInstance.screenToFlowPosition({ x: e.clientX - bounds.left, y: e.clientY - bounds.top });
@@ -807,7 +753,10 @@ export function EditorPage() {
         <div
           className="flex-1 relative"
           ref={wrapperRef}
-          onDoubleClick={onPaneDoubleClick}
+          onDoubleClick={(e) => {
+            if ((e.target as HTMLElement).closest(".react-flow__node")) return;
+            onPaneDoubleClick(e);
+          }}
         >
           <ReactFlow
             nodes={displayNodes}
@@ -826,7 +775,7 @@ export function EditorPage() {
           >
             <Background color="#374151" gap={16} />
             <Controls />
-            <MiniMap nodeColor="#1f2937" maskColor="#111827aa" style={{ backgroundColor: "#111827" }} />
+            <MiniMap style={{ backgroundColor: "#111827" }} nodeColor="#1f2937" maskColor="#111827aa" />
           </ReactFlow>
 
           {/* Quick-add popup */}
