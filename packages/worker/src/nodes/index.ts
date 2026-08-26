@@ -32,6 +32,11 @@ import { executeDeduplicate } from "./deduplicate";
 import { executeSort } from "./sort";
 import { executeLimit } from "./limit";
 import { executeRenameKeys } from "./renameKeys";
+import { executeApexDispatch } from "./apex";
+import { executeKnoll } from "./knoll";
+import { executeDream } from "./dream";
+import { executeVision } from "./vision";
+import { executeHope } from "./hope";
 
 interface NodeDef {
   id: string;
@@ -121,6 +126,17 @@ export async function executeNode(
       return executeRenameKeys(node, $input);
     case "stickyNote":
       return $input; // pass-through annotation node
+    // HDV Big Five agent nodes
+    case "apex":
+      return executeApexDispatch(node, $input);
+    case "knoll":
+      return executeKnoll(node, $input);
+    case "dream":
+      return executeDream(node, $input);
+    case "vision":
+      return executeVision(node, $input);
+    case "hope":
+      return executeHope(node, $input);
     default:
       throw new Error(`Unknown node type: "${nodeType}"`);
   }
