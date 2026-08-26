@@ -11,12 +11,15 @@
  *  F. executeSet        — mappings with interpolation, passthrough
  *  G. executeSwitch     — matched case, default case, nested field
  *  H. executeAggregate  — arrayKey, outputKey, flatten, count
- *  I. executeTransform  — keepInput, dot-path output keys, null for missing
- *  J. executeCrypto     — sha256, base64encode/decode, urlencode, hmac_sha256
- *  K. executeSort       — asc/desc, sortField, primitives
- *  L. executeLimit      — start/end keepFrom, maxItems
+ *  I. executeTransform    — keepInput, dot-path output keys, null for missing
+ *  J. executeCrypto      — sha256, base64encode/decode, urlencode, hmac_sha256
+ *  K. executeSort        — asc/desc, sortField, primitives
+ *  L. executeLimit       — start/end keepFrom, maxItems
  *  M. executeDeduplicate — removeSubsequent, keepLast, dedupeField
  *  N. executeRenameKeys  — from→to, removeOldKeys default
+ *  O. executeKnoll       — forbidden keys, SSRF, custom forbidKeys, audit object
+ *  P. executeSplitBatches — batchSize, _batchCount, _isLastBatch, _batches
+ *  Q. executeJsonPath    — get/set/delete/pick/omit/rename operations
  *
  * Run: node --require ts-node/register --test tests/nodes.test.ts
  */
@@ -27,16 +30,19 @@ import { executeValidate }  from "../packages/worker/src/nodes/validate";
 import { executeFilter }    from "../packages/worker/src/nodes/filter";
 import { interpolate }      from "../packages/worker/src/lib/expr";
 import { executeLoop }      from "../packages/worker/src/nodes/loop";
-import { executeIfBranch }   from "../packages/worker/src/nodes/ifBranch";
-import { executeSet }        from "../packages/worker/src/nodes/set";
-import { executeSwitch }     from "../packages/worker/src/nodes/switch";
-import { executeAggregate }  from "../packages/worker/src/nodes/aggregate";
-import { executeTransform }  from "../packages/worker/src/nodes/transform";
-import { executeCrypto }     from "../packages/worker/src/nodes/crypto";
-import { executeSort }       from "../packages/worker/src/nodes/sort";
-import { executeLimit }      from "../packages/worker/src/nodes/limit";
+import { executeIfBranch }    from "../packages/worker/src/nodes/ifBranch";
+import { executeSet }         from "../packages/worker/src/nodes/set";
+import { executeSwitch }      from "../packages/worker/src/nodes/switch";
+import { executeAggregate }   from "../packages/worker/src/nodes/aggregate";
+import { executeTransform }   from "../packages/worker/src/nodes/transform";
+import { executeCrypto }      from "../packages/worker/src/nodes/crypto";
+import { executeSort }        from "../packages/worker/src/nodes/sort";
+import { executeLimit }       from "../packages/worker/src/nodes/limit";
 import { executeDeduplicate } from "../packages/worker/src/nodes/deduplicate";
-import { executeRenameKeys } from "../packages/worker/src/nodes/renameKeys";
+import { executeRenameKeys }  from "../packages/worker/src/nodes/renameKeys";
+import { executeKnoll }       from "../packages/worker/src/nodes/knoll";
+import { executeSplitBatches } from "../packages/worker/src/nodes/splitBatches";
+import { executeJsonPath }    from "../packages/worker/src/nodes/jsonPath";
 
 // ---------------------------------------------------------------------------
 // A. executeValidate
@@ -1020,4 +1026,188 @@ test("renameKeys: missing source key results in no change", () => {
   );
   assert.equal(r.target, undefined);
   assert.equal(r.unrelated, "data");
+});
+
+// ---------------------------------------------------------------------------
+// O. executeKnoll (security sentinel)
+// ---------------------------------------------------------------------------
+
+test("knoll: clean payload passes all checks", async () => {
+  const r = await executeKnoll(
+    { data: { auditLabel: "test-ok", checkPayloadSize: true, checkForbiddenKeys: true, checkSsrf: true } },
+    { user: "alice", action: "view", count: 5 }
+  );
+  assert.equal((r._knollAudit as Record<string, unknown>).passed, true);
+  assert.equal((r._knollAudit as Record<string, unknown>).label, "test-ok");
+});
+
+test("knoll: forbidden key 'password' blocks execution", async () => {
+  await assert.rejects(
+    () => executeKnoll({ data: {} }, { password: "hunter2" }),
+    /KNOLL.*BLOCKED.*password/
+  );
+});
+
+test("knoll: forbidden key 'secret' blocks execution", async () => {
+  await assert.rejects(
+    () => executeKnoll({ data: {} }, { api_secret: "abc" }),
+    /KNOLL.*BLOCKED/
+  );
+});
+
+test("knoll: SSRF URL blocks execution", async () => {
+  await assert.rejects(
+    () => executeKnoll({ data: {} }, { url: "http://192.168.1.1/admin" }),
+    /KNOLL.*BLOCKED.*SSRF/
+  );
+});
+
+test("knoll: localhost URL is blocked by SSRF check", async () => {
+  await assert.rejects(
+    () => executeKnoll({ data: {} }, { endpoint: "http://localhost:8080/secret" }),
+    /KNOLL.*BLOCKED/
+  );
+});
+
+test("knoll: custom forbidKeys blocks matching key", async () => {
+  await assert.rejects(
+    () => executeKnoll({ data: { forbidKeys: "internalToken" } }, { internalToken: "xyz" }),
+    /KNOLL.*BLOCKED.*Forbidden keys/
+  );
+});
+
+test("knoll: checkForbiddenKeys=false skips the check", async () => {
+  const r = await executeKnoll(
+    { data: { checkForbiddenKeys: false } },
+    { password: "allowed-when-disabled" }
+  );
+  assert.equal((r._knollAudit as Record<string, unknown>).passed, true);
+});
+
+test("knoll: checkSsrf=false allows private URL", async () => {
+  const r = await executeKnoll(
+    { data: { checkSsrf: false } },
+    { url: "http://10.0.0.1/api" }
+  );
+  assert.equal((r._knollAudit as Record<string, unknown>).passed, true);
+});
+
+test("knoll: audit object contains check flags", async () => {
+  const r = await executeKnoll(
+    { data: { checkPayloadSize: true, checkForbiddenKeys: true, checkSsrf: true, checkEntropy: false } },
+    { safe: "data" }
+  );
+  assert.equal((r._knollAudit as Record<string, Record<string, unknown>>).checks.payloadSize, true);
+  assert.equal((r._knollAudit as Record<string, Record<string, unknown>>).checks.forbiddenKeys, true);
+  assert.equal((r._knollAudit as Record<string, Record<string, unknown>>).checks.ssrf, true);
+  assert.equal((r._knollAudit as Record<string, Record<string, unknown>>).checks.entropy, false);
+});
+
+test("knoll: input fields preserved on pass", async () => {
+  const r = await executeKnoll({ data: {} }, { myField: "hello" });
+  assert.equal(r.myField, "hello");
+});
+
+// ---------------------------------------------------------------------------
+// P. executeSplitBatches
+// ---------------------------------------------------------------------------
+
+test("splitBatches: splits array into batches of correct size", () => {
+  const r = executeSplitBatches(
+    { data: { arrayKey: "items", batchSize: 2, outputKey: "batch" } },
+    { items: [1, 2, 3, 4, 5] }
+  );
+  assert.equal(r._batchCount, 3);
+  assert.equal(r._totalItems, 5);
+  assert.deepEqual(r.batch, [1, 2]);
+});
+
+test("splitBatches: isLastBatch true when only one batch", () => {
+  const r = executeSplitBatches(
+    { data: { arrayKey: "items", batchSize: 10 } },
+    { items: [1, 2, 3] }
+  );
+  assert.equal(r._isLastBatch, true);
+});
+
+test("splitBatches: _batchIndex starts at 0", () => {
+  const r = executeSplitBatches(
+    { data: { arrayKey: "items", batchSize: 2 } },
+    { items: [1, 2, 3] }
+  );
+  assert.equal(r._batchIndex, 0);
+});
+
+test("splitBatches: all batches stored in _batches", () => {
+  const r = executeSplitBatches(
+    { data: { arrayKey: "items", batchSize: 2 } },
+    { items: [1, 2, 3, 4] }
+  );
+  assert.deepEqual(r._batches, [[1, 2], [3, 4]]);
+});
+
+// ---------------------------------------------------------------------------
+// Q. executeJsonPath
+// ---------------------------------------------------------------------------
+
+test("jsonPath: get operation retrieves nested value", () => {
+  const r = executeJsonPath(
+    { data: { operation: "get", path: "$.user.name", outputField: "name" } },
+    { user: { name: "Alice" } }
+  );
+  assert.equal(r.name, "Alice");
+});
+
+test("jsonPath: get with array index", () => {
+  const r = executeJsonPath(
+    { data: { operation: "get", path: "$.items[0]", outputField: "first" } },
+    { items: ["alpha", "beta"] }
+  );
+  assert.equal(r.first, "alpha");
+});
+
+test("jsonPath: set operation creates nested path", () => {
+  const r = executeJsonPath(
+    { data: { operation: "set", path: "result.status", value: "ok" } },
+    {}
+  );
+  assert.deepEqual(r.result, { status: "ok" });
+});
+
+test("jsonPath: delete removes top-level key", () => {
+  const r = executeJsonPath(
+    { data: { operation: "delete", path: "secret" } },
+    { secret: "xyz", keep: "this" }
+  );
+  assert.equal(r.secret, undefined);
+  assert.equal(r.keep, "this");
+});
+
+test("jsonPath: pick selects specific paths", () => {
+  const r = executeJsonPath(
+    { data: { operation: "pick", paths: "name, count" } },
+    { name: "Bob", count: 5, extra: "dropped" }
+  );
+  assert.equal(r.name, "Bob");
+  assert.equal(r.count, 5);
+  assert.equal(r.extra, undefined);
+});
+
+test("jsonPath: omit removes specified paths", () => {
+  const r = executeJsonPath(
+    { data: { operation: "omit", paths: "secret" } },
+    { data: "keep", secret: "gone" }
+  );
+  assert.equal(r.secret, undefined);
+  assert.equal(r.data, "keep");
+});
+
+test("jsonPath: rename moves a key", () => {
+  const r = executeJsonPath(
+    { data: { operation: "rename", from: "old", to: "new" } },
+    { old: "value", other: "keep" }
+  );
+  assert.equal(r.new, "value");
+  assert.equal(r.old, undefined);
+  assert.equal(r.other, "keep");
 });
