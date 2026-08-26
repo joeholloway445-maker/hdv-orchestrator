@@ -750,7 +750,14 @@ export function EditorPage() {
       <div className="flex flex-1 overflow-hidden">
         <NodeSidebar nodeTypes={NODE_TYPE_CONFIG} />
 
-        <div className="flex-1 relative" ref={wrapperRef}>
+        <div
+          className="flex-1 relative"
+          ref={wrapperRef}
+          onDoubleClick={(e) => {
+            if ((e.target as HTMLElement).closest(".react-flow__node")) return;
+            onPaneDoubleClick(e);
+          }}
+        >
           <ReactFlow
             nodes={displayNodes}
             edges={edges}
@@ -763,13 +770,12 @@ export function EditorPage() {
             onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNode(node as Node<NodeData>)}
             onPaneClick={() => { setSelectedNode(null); setQuickAdd(null); }}
-            onPaneDoubleClick={onPaneDoubleClick}
             fitView
             deleteKeyCode="Delete"
           >
             <Background color="#374151" gap={16} />
             <Controls />
-            <MiniMap bgColor="#111827" nodeColor="#1f2937" maskColor="#111827aa" />
+            <MiniMap style={{ backgroundColor: "#111827" }} nodeColor="#1f2937" maskColor="#111827aa" />
           </ReactFlow>
 
           {/* Quick-add popup */}

@@ -1,19 +1,17 @@
-version: '3.8'
+version: '3.9'
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: workflow_platform
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - '5432:5432'
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-workflow_platform}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -21,10 +19,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - '6379:6379'
+    volumes:
+      - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -34,28 +32,29 @@ services:
       context: .
       dockerfile: packages/api/Dockerfile
     restart: unless-stopped
-    ports:
-      - '4000:4000'
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/workflow_platform
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-workflow_platform}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: change_this_in_production_supersecret
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production_supersecret}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       PORT: 4000
-      WEBHOOK_BASE_URL: http://localhost:4000
-      # HDV Big Five — set these for full functionality
+      NODE_ENV: ${NODE_ENV:-production}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://localhost:4000}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-hdv-internal-key}
-      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "${API_PORT:-4000}:4000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,10 +66,10 @@ services:
       dockerfile: packages/worker/Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/workflow_platform
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-workflow_platform}
       REDIS_URL: redis://redis:6379
-      # HDV Big Five — match values in api service
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       WORKFLOW_API_URL: http://api:4000
       WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-hdv-internal-key}
       SUPABASE_URL: ${SUPABASE_URL:-}
@@ -94,7 +93,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - '3000:80'
+      - "${FRONTEND_PORT:-3000}:80"
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:4000}
       VITE_WS_URL: ${VITE_WS_URL:-http://localhost:4000}
@@ -102,7 +101,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ | grep -q "<!DOCTYPE html>" || exit 1']
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ | grep -q '<!DOCTYPE html>' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -110,3 +109,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
