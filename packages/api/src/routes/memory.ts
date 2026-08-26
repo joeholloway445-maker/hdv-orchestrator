@@ -19,8 +19,8 @@ router.put("/:key", async (req: AuthRequest, res) => {
   const scopeId = workflowId ?? "";
   const item = await prisma.userMemory.upsert({
     where: { userId_key_workflowId: { userId: req.userId!, key: req.params.key, workflowId: scopeId } },
-    create: { userId: req.userId!, key: req.params.key, value, workflowId: scopeId },
-    update: { value },
+    create: { userId: req.userId!, key: req.params.key, value: JSON.parse(JSON.stringify(value)), workflowId: scopeId },
+    update: { value: JSON.parse(JSON.stringify(value)) },
   });
   res.json(item);
 });

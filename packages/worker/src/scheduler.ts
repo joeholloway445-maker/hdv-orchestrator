@@ -22,7 +22,7 @@ async function syncSchedules(prisma: PrismaClient) {
   const desired = new Map<string, { expr: string; timezone?: string }>(); // workflowId → schedule config
 
   for (const wf of activeWorkflows) {
-    const nodes = wf.nodes as RawNode[];
+    const nodes = wf.nodes as unknown as RawNode[];
     const scheduleNode = nodes.find((n) => n.data?.nodeType === "scheduleTrigger");
     if (!scheduleNode) continue;
     const expr = String(scheduleNode.data?.cronExpression || "");

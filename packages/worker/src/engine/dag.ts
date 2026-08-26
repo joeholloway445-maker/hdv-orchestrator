@@ -37,8 +37,8 @@ async function pub(publisher: IORedis, executionId: string, event: Record<string
 }
 
 export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId, executionDepth = 0 }: Options) {
-  const nodes = workflow.nodes as RawNode[];
-  const edges = workflow.edges as RawEdge[];
+  const nodes = workflow.nodes as unknown as RawNode[];
+  const edges = workflow.edges as unknown as RawEdge[];
 
   // Pre-load global variables and attach to trigger data as $vars
   const $vars = await getGlobalVars(prisma, workflow.userId).catch(() => ({}));
@@ -209,7 +209,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
           data: {
             workflowId: workflow.id,
             status: "PENDING",
-            data: { triggerData },
+            data: JSON.parse(JSON.stringify({ triggerData })),
           },
         });
         await enqueueWorkflow({
