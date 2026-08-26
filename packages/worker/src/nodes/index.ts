@@ -35,6 +35,8 @@ import { executeRenameKeys } from "./renameKeys";
 import { executeApexDispatch } from "./apex";
 import { executeKnoll } from "./knoll";
 import { executeDream } from "./dream";
+import { executeVision } from "./vision";
+import { executeHope } from "./hope";
 
 interface NodeDef {
   id: string;
@@ -131,6 +133,10 @@ export async function executeNode(
       return executeKnoll(node, $input);
     case "dream":
       return executeDream(node, $input);
+    case "vision":
+      return executeVision(node, $input);
+    case "hope":
+      return executeHope(node, $input);
     default:
       throw new Error(`Unknown node type: "${nodeType}"`);
   }
