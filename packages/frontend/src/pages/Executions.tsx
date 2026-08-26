@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { StatusChip } from "../components/StatusChip";
+import { TimeAgo } from "../components/TimeAgo";
 
 interface NodeLog {
   id: string;
@@ -178,10 +180,13 @@ export function ExecutionsPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [workflowFilter, setWorkflowFilter] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [detail, setDetail] = useState<ExecutionDetail | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const navigate = useNavigate();
 
   function buildParams(extra?: Record<string, string>) {
     const p = new URLSearchParams({ limit: "50" });

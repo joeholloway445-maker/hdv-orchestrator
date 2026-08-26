@@ -58,16 +58,16 @@ export function BaseNode({
         <div className="flex items-center gap-2">
           <span className="text-lg">{icon}</span>
           <span className="text-white font-semibold text-sm truncate flex-1">{data.label || "Node"}</span>
-          {data._pinnedData && (
+          {!!data._pinnedData && (
             <span title="Output pinned" className="text-xs opacity-70">📌</span>
           )}
           {statusDot && (
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDot}`} title={data._status} />
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDot}`} title={data._status as string} />
           )}
         </div>
         {data._outputPreview && (
           <div className="mt-1.5 text-xs text-white/60 font-mono truncate max-w-[140px]" title={data._outputPreview as string}>
-            {data._outputPreview}
+            {data._outputPreview as string}
           </div>
         )}
       </div>

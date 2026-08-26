@@ -149,6 +149,30 @@ export const HopeNode = (props: NodeProps<ND>) => (
   <BaseNode {...props} color="bg-green-800" icon="🛡" hasErrorOutput />
 );
 
+export const XmlNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-lime-700" icon="📄" />
+);
+
+export const RssNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-orange-600" icon="📡" />
+);
+
+export const DeduplicateNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-teal-700" icon="⊜" />
+);
+
+export const SortNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-cyan-700" icon="⇅" />
+);
+
+export const LimitNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-indigo-700" icon="⊤" />
+);
+
+export const RenameKeysNode = (props: NodeProps<ND>) => (
+  <BaseNode {...props} color="bg-violet-700" icon="✎" />
+);
+
 export const StickyNoteNode = (props: NodeProps<ND>) => {
   const label = props.data.label || "Note";
   const text = (props.data.text as string) || "";
@@ -202,4 +226,11 @@ export const nodeTypes = {
   dream: DreamNode,
   vision: VisionNode,
   hope: HopeNode,
+  // Data extras
+  xml: XmlNode,
+  rss: RssNode,
+  deduplicate: DeduplicateNode,
+  sort: SortNode,
+  limit: LimitNode,
+  renameKeys: RenameKeysNode,
 };

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
@@ -7,11 +8,13 @@ import { MemoryPage } from "./pages/Memory";
 import { CredentialsPage } from "./pages/Credentials";
 import { VariablesPage } from "./pages/Variables";
 import { ExecutionsPage } from "./pages/Executions";
+import { ExecutionDetailPage } from "./pages/ExecutionDetail";
 import { TokensPage } from "./pages/Tokens";
 import { WebhooksPage } from "./pages/Webhooks";
 import { TemplatesPage } from "./pages/Templates";
 import { SchedulesPage } from "./pages/Schedules";
 import { useAuthStore } from "./store/auth";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -19,11 +22,28 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const init = useAuthStore((s) => s.init);
+
+  useEffect(() => {
+    init();
+  }, [init]);
+
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        {/* /dashboard is the canonical post-login landing */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <DashboardPage />
+            </PrivateRoute>
+          }
+        />
+        {/* Keep / as alias so existing deep-links still work */}
         <Route
           path="/"
           element={
@@ -73,6 +93,14 @@ export default function App() {
           }
         />
         <Route
+          path="/executions/:id"
+          element={
+            <PrivateRoute>
+              <ExecutionDetailPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/tokens"
           element={
             <PrivateRoute>
@@ -104,8 +132,9 @@ export default function App() {
             </PrivateRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
