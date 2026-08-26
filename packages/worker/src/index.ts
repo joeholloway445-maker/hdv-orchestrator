@@ -34,7 +34,7 @@ const worker = new Worker(
 
     await prisma.execution.update({
       where: { id: executionId },
-      data: { status: "RUNNING", data: { triggerData } },
+      data: { status: "RUNNING", data: JSON.parse(JSON.stringify({ triggerData })) },
     });
 
     try {
@@ -78,7 +78,7 @@ const worker = new Worker(
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
-          data: { triggerData, outputs: summaryOutputs, ...(webhookResponse ? { webhookResponse } : {}) },
+          data: JSON.parse(JSON.stringify({ triggerData, outputs: summaryOutputs, ...(webhookResponse ? { webhookResponse } : {}) })),
         },
       });
       await cleanupPayloads(executionId);
@@ -87,7 +87,7 @@ const worker = new Worker(
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
       await prisma.execution.update({
         where: { id: executionId },
-        data: { status: "FAILED", finishedAt: new Date(), data: { triggerData, error: msg } },
+        data: { status: "FAILED", finishedAt: new Date(), data: JSON.parse(JSON.stringify({ triggerData, error: msg })) },
       });
       await cleanupPayloads(executionId);
       await publisher.publish(

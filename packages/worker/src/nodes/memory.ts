@@ -36,8 +36,8 @@ export async function executeMemoryWrite(
 
   await prisma.userMemory.upsert({
     where: { userId_key_workflowId: { userId, key, workflowId } },
-    create: { userId, key, value, workflowId },
-    update: { value },
+    create: { userId, key, value: JSON.parse(JSON.stringify(value)), workflowId },
+    update: { value: JSON.parse(JSON.stringify(value)) },
   });
   return $input;
 }

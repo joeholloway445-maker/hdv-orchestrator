@@ -27,7 +27,7 @@ export async function executeSubWorkflow(
   if (!wf) throw new Error(`Sub-workflow not found: ${targetId}`);
 
   const execution = await prisma.execution.create({
-    data: { workflowId: targetId, status: "PENDING", data: { triggerData: $input } },
+    data: { workflowId: targetId, status: "PENDING", data: JSON.parse(JSON.stringify({ triggerData: $input })) },
   });
 
   // Async yield — enqueue child and return immediately rather than blocking.
