@@ -109,7 +109,7 @@ export async function executeNode(
     case "htmlExtract":
       return executeHtmlExtract(node, $input);
     case "database":
-      return executeDatabase(node, $input);
+      return executeDatabase(node, $input, prisma);
     case "slack":
       return executeSlack(node, $input);
     case "xml":

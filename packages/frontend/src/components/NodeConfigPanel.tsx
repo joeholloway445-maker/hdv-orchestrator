@@ -1318,6 +1318,13 @@ export function NodeConfigPanel({
                   </select>
                 </div>
                 <div>
+                  <label className={labelCls}>Credential (optional — overrides host/user/password below)</label>
+                  <select className={inputCls} value={local.credentialId || ""} onChange={(e) => patch({ credentialId: e.target.value || undefined })}>
+                    <option value="">— Enter connection details manually —</option>
+                    {credentials.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className={labelCls}>Host</label>
                   <input className={inputCls} value={(local.host as string) || ""} onChange={(e) => patch({ host: e.target.value })} placeholder="localhost" />
                 </div>
