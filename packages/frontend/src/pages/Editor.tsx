@@ -278,7 +278,8 @@ export function EditorPage() {
   }, [id]);
 
   useEffect(() => {
-    const socket = io("http://localhost:4000", { auth: { token } });
+    const wsUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+    const socket = io(wsUrl, { auth: { token } });
     socketRef.current = socket;
 
     socket.on("telemetry", (event: { type: string; nodeId?: string; executionId: string; output?: unknown; error?: string }) => {

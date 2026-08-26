@@ -42,6 +42,12 @@ services:
       JWT_SECRET: change_this_in_production_supersecret
       PORT: 4000
       WEBHOOK_BASE_URL: http://localhost:4000
+      # HDV Big Five — set these for full functionality
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-hdv-internal-key}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +68,17 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/workflow_platform
       REDIS_URL: redis://redis:6379
+      # HDV Big Five — match values in api service
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WORKFLOW_API_URL: http://api:4000
+      WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-hdv-internal-key}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      APEX_BASE_URL: ${APEX_BASE_URL:-}
+      APEX_API_KEY: ${APEX_API_KEY:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
     depends_on:
       postgres:
         condition: service_healthy
