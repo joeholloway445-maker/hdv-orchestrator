@@ -14,8 +14,10 @@ import { credentialsRouter } from "./routes/credentials";
 import { variablesRouter } from "./routes/variables";
 import { tokensRouter } from "./routes/tokens";
 import { templatesRouter } from "./routes/templates";
+import { simulateRouter } from "./routes/simulate";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
+import { supabaseAuth } from "./middleware/supabase";
 
 const healthPrisma = new PrismaClient();
 
@@ -53,6 +55,9 @@ app.use(
   })
 );
 
+// Apply Supabase/HOPE token auth as a pre-pass before standard verifyToken
+app.use(supabaseAuth);
+
 app.use("/auth", authRouter);
 app.use("/webhooks/list", verifyToken, webhooksRouter);
 app.use("/webhooks", webhooksRouter);
@@ -63,6 +68,8 @@ app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
 app.use("/templates", verifyToken, templatesRouter);
+// DREAM simulation — requires auth
+app.use("/simulate", verifyToken, simulateRouter);
 
 app.get("/health", async (_req, res) => {
   const checks: Record<string, string> = {};
