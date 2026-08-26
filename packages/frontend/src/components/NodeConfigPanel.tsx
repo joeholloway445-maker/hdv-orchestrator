@@ -1546,6 +1546,191 @@ export function NodeConfigPanel({
               </div>
             )}
 
+            {/* KNOLL Security Sentinel */}
+            {nodeType === "knoll" && (
+              <div className="space-y-3">
+                <div className="bg-red-900/20 border border-red-800/40 rounded-lg p-3">
+                  <p className="text-xs text-red-300 font-medium">🔒 KNOLL Security Sentinel</p>
+                  <p className="text-xs text-gray-400 mt-1">Blocks forbidden keys, SSRF URLs, oversized payloads, and high-entropy secrets before they reach downstream nodes.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Max Payload Size (KB)</label>
+                  <input className={inputCls} type="number" min="1" max="10240" value={(local.maxPayloadKb as string) || "512"} onChange={(e) => patch({ maxPayloadKb: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelCls}>Additional Forbidden Keys (comma-separated)</label>
+                  <input className={inputCls} value={(local.forbidKeys as string) || ""} onChange={(e) => patch({ forbidKeys: e.target.value })} placeholder="apiKey, internalToken" />
+                  <p className="text-xs text-gray-500 mt-0.5">Added to defaults: password, secret, ssn, cvv, token, api_key</p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={(local.checkSsrf as boolean) !== false} onChange={(e) => patch({ checkSsrf: e.target.checked })} className="accent-red-500" />
+                  <span className="text-gray-300 text-xs">Block SSRF (localhost, 10.x, 172.16-31.x, 192.168.x)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!(local.checkEntropy as boolean)} onChange={(e) => patch({ checkEntropy: e.target.checked })} className="accent-red-500" />
+                  <span className="text-gray-300 text-xs">Entropy check (flag high-entropy strings as potential secrets)</span>
+                </label>
+                {!!(local.checkEntropy as boolean) && (
+                  <div>
+                    <label className={labelCls}>Max Entropy Bits (default 4.5)</label>
+                    <input className={inputCls} type="number" min="3" max="8" step="0.1" value={(local.maxEntropyBits as string) || "4.5"} onChange={(e) => patch({ maxEntropyBits: e.target.value })} />
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">Output: $input + _knollAudit (label, passed, timestamp, checks)</p>
+              </div>
+            )}
+
+            {/* APEX MoE Router */}
+            {nodeType === "apex" && (
+              <>
+                <div className="bg-purple-900/20 border border-purple-800/40 rounded-lg p-3">
+                  <p className="text-xs text-purple-300 font-medium">⚡ APEX Mixture-of-Experts Router</p>
+                  <p className="text-xs text-gray-400 mt-1">Routes tasks to the optimal Claude model by category and budget. Falls back to local heuristic when APEX_BASE_URL is unset.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Intent (supports {`{{$input.field}}`})</label>
+                  <ExpressionInput multiline value={(local.intent as string) || ""} onChange={(v) => patch({ intent: v })} placeholder="{{$input.userMessage}}" className={inputCls + " resize-none"} suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Category</label>
+                  <select className={inputCls} value={(local.category as string) || "general"} onChange={(e) => patch({ category: e.target.value })}>
+                    <option value="general">General</option>
+                    <option value="code">Code</option>
+                    <option value="creative">Creative</option>
+                    <option value="security">Security</option>
+                    <option value="analysis">Analysis</option>
+                    <option value="vision">Vision</option>
+                    <option value="chat">Chat</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Budget Tier</label>
+                  <select className={inputCls} value={(local.budgetTier as string) || "medium"} onChange={(e) => patch({ budgetTier: e.target.value })}>
+                    <option value="low">Low — Haiku (fast &amp; cheap)</option>
+                    <option value="medium">Medium — Sonnet (balanced)</option>
+                    <option value="high">High — Opus / Fable (most capable)</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!(local.preferSpeed as boolean)} onChange={(e) => patch({ preferSpeed: e.target.checked })} className="accent-purple-500" />
+                  <span className="text-gray-300 text-xs">Prefer speed (bias toward smaller, faster models)</span>
+                </label>
+                <div>
+                  <label className={labelCls}>System Prompt (optional)</label>
+                  <ExpressionInput multiline value={(local.systemPrompt as string) || ""} onChange={(v) => patch({ systemPrompt: v })} placeholder="You are a helpful assistant." className={inputCls + " resize-none"} suggestions={inputSuggestions} />
+                </div>
+                <div>
+                  <label className={labelCls}>Max Tokens</label>
+                  <input className={inputCls} type="number" min="1" max="8096" value={(local.maxTokens as string) || "1024"} onChange={(e) => patch({ maxTokens: e.target.value })} />
+                </div>
+                <p className="text-xs text-gray-500">Output: apexModel, apexCategory, apexBudgetTier, apexResponseText, apexResponseParsed, apexRoutedLocally, apexUsage</p>
+              </>
+            )}
+
+            {/* DREAM Simulation & Creation */}
+            {nodeType === "dream" && (
+              <div className="space-y-3">
+                <div className="bg-indigo-900/20 border border-indigo-800/40 rounded-lg p-3">
+                  <p className="text-xs text-indigo-300 font-medium">✦ DREAM Simulation &amp; Creation</p>
+                  <p className="text-xs text-gray-400 mt-1">Simulates workflows, scores them for quality, or generates new workflow plans from a natural-language intent.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Mode</label>
+                  <select className={inputCls} value={(local.mode as string) || "simulate"} onChange={(e) => patch({ mode: e.target.value })}>
+                    <option value="simulate">Simulate — dry-run DAG from $input.nodes/$input.edges</option>
+                    <option value="score">Score — quality score for $input workflow definition</option>
+                    <option value="generate">Generate — create a workflow plan via Claude</option>
+                  </select>
+                </div>
+                {(local.mode as string) === "generate" && (
+                  <div>
+                    <label className={labelCls}>Intent (supports {`{{$input.field}}`})</label>
+                    <ExpressionInput multiline value={(local.intent as string) || ""} onChange={(v) => patch({ intent: v })} placeholder="{{$input.intent}}" className={inputCls + " resize-none"} suggestions={inputSuggestions} />
+                    <p className="text-xs text-gray-500 mt-0.5">Output: dreamPlan, dreamSteps, dreamModel, dreamUsage</p>
+                  </div>
+                )}
+                {(local.mode as string) === "simulate" && (
+                  <p className="text-xs text-gray-500">$input must contain nodes[] and edges[]. Output: dreamTrace, dreamScore, dreamDuration</p>
+                )}
+                {(local.mode as string) === "score" && (
+                  <p className="text-xs text-gray-500">$input must contain a workflow definition. Output: dreamScore (0-100), dreamSuggestions[], dreamBonuses</p>
+                )}
+              </div>
+            )}
+
+            {/* VISION Automation Runtime */}
+            {nodeType === "vision" && (
+              <div className="space-y-3">
+                <div className="bg-cyan-900/20 border border-cyan-800/40 rounded-lg p-3">
+                  <p className="text-xs text-cyan-300 font-medium">👁 VISION Automation Runtime</p>
+                  <p className="text-xs text-gray-400 mt-1">Triggers sub-workflows by ID or executes inline DAG definitions. Connects workflows to the HDV execution bus.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Mode</label>
+                  <select className={inputCls} value={(local.visionMode as string) || "trigger"} onChange={(e) => patch({ visionMode: e.target.value })}>
+                    <option value="trigger">Trigger — enqueue a named workflow by ID</option>
+                    <option value="inline">Inline — execute a DAG definition directly</option>
+                    <option value="noop">No-op — pass through (for testing)</option>
+                  </select>
+                </div>
+                {((local.visionMode as string) === "trigger" || !(local.visionMode as string)) && (
+                  <>
+                    <div>
+                      <label className={labelCls}>Workflow ID</label>
+                      <input className={inputCls + " font-mono"} value={(local.workflowId as string) || ""} onChange={(e) => patch({ workflowId: e.target.value })} placeholder="workflow-uuid" />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Intent (optional description)</label>
+                      <ExpressionInput value={(local.intent as string) || ""} onChange={(v) => patch({ intent: v })} placeholder="{{$input.intent}}" suggestions={inputSuggestions} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Extra Trigger Data (JSON, merged with $input)</label>
+                      <textarea className={inputCls + " resize-none font-mono text-xs"} rows={4} value={(local.triggerData as string) || ""} onChange={(e) => patch({ triggerData: e.target.value })} placeholder={'{\n  "source": "vision-node"\n}'} />
+                    </div>
+                  </>
+                )}
+                {(local.visionMode as string) === "inline" && (
+                  <div>
+                    <label className={labelCls}>Inline DAG (JSON with nodes[] and edges[])</label>
+                    <textarea className={inputCls + " resize-none font-mono text-xs"} rows={6} value={(local.dag as string) || ""} onChange={(e) => patch({ dag: e.target.value })} placeholder={'{\n  "nodes": [...],\n  "edges": [...]\n}'} />
+                    <p className="text-xs text-gray-500 mt-0.5">Returns dag + triggerData + intent — the DAG runner executes it.</p>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">Output: visionMode, jobId, status, workflowId, intent</p>
+              </div>
+            )}
+
+            {/* HOPE Auth Gateway */}
+            {nodeType === "hope" && (
+              <div className="space-y-3">
+                <div className="bg-green-900/20 border border-green-800/40 rounded-lg p-3">
+                  <p className="text-xs text-green-300 font-medium">🛡 HOPE Auth Gateway</p>
+                  <p className="text-xs text-gray-400 mt-1">Validates user JWT against Supabase Auth and enriches $input with the resolved user profile. Place at the start of auth-gated workflows.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Token (or pass hopeToken in $input)</label>
+                  <input className={inputCls} type="password" value={(local.token as string) || ""} onChange={(e) => patch({ token: e.target.value })} placeholder="eyJ..." />
+                  <p className="text-xs text-gray-500 mt-0.5">Supports {`{{$input.hopeToken}}`} for dynamic injection</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Required Role (optional)</label>
+                  <input className={inputCls} value={(local.requiredRole as string) || ""} onChange={(e) => patch({ requiredRole: e.target.value || undefined })} placeholder="admin, editor, …" />
+                  <p className="text-xs text-gray-500 mt-0.5">Throws if user.role does not match (admin always passes)</p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!(local.allowAnon as boolean)} onChange={(e) => patch({ allowAnon: e.target.checked })} className="accent-green-500" />
+                  <span className="text-gray-300 text-xs">Allow anonymous (pass through when no valid session)</span>
+                </label>
+                <div className="border-t border-gray-700 pt-3 space-y-2">
+                  <label className={labelCls}>Supabase URL (overrides SUPABASE_URL env)</label>
+                  <input className={inputCls} value={(local.supabaseUrl as string) || ""} onChange={(e) => patch({ supabaseUrl: e.target.value || undefined })} placeholder="https://xxx.supabase.co" />
+                  <label className={labelCls}>Supabase Service Role Key (overrides env)</label>
+                  <input className={inputCls} type="password" value={(local.supabaseKey as string) || ""} onChange={(e) => patch({ supabaseKey: e.target.value || undefined })} placeholder="eyJ…" />
+                </div>
+                <p className="text-xs text-gray-500">Output: hopeAuthenticated, hopeUserId, hopeEmail, hopeRole, hopeBlocked</p>
+              </div>
+            )}
+
             {/* Pinned Data — available on all non-trigger nodes */}
             {nodeType !== "webhookTrigger" && nodeType !== "manualTrigger" && nodeType !== "scheduleTrigger" && nodeType !== "stickyNote" && (
               <div className="border-t border-gray-700 pt-3 space-y-1">

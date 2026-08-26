@@ -19,6 +19,7 @@ import { useAuthStore } from "../store/auth";
 import { NodeSidebar } from "../components/NodeSidebar";
 import { NodeConfigPanel } from "../components/NodeConfigPanel";
 import { ExecutionPanel } from "../components/ExecutionPanel";
+import { DreamGenerator } from "../components/DreamGenerator";
 import { nodeTypes } from "../components/nodes/nodeTypes";
 
 interface NodeData {
@@ -108,6 +109,12 @@ export const NODE_TYPE_CONFIG = [
   { type: "ai", label: "AI / LLM", color: "bg-purple-900", description: "Call Claude / Anthropic", category: "AI" },
   { type: "memoryRead", label: "Memory Read", color: "bg-cyan-700", description: "Read user memory", category: "AI" },
   { type: "memoryWrite", label: "Memory Write", color: "bg-cyan-800", description: "Write user memory", category: "AI" },
+  // HDV Big Five
+  { type: "knoll", label: "KNOLL", color: "bg-red-800", description: "Security sentinel — blocks forbidden keys, SSRF, oversized payloads", category: "HDV" },
+  { type: "apex", label: "APEX", color: "bg-purple-700", description: "MoE router — routes tasks to optimal Claude model", category: "HDV" },
+  { type: "dream", label: "DREAM", color: "bg-indigo-800", description: "Simulation & creation — simulate, score, or generate workflows", category: "HDV" },
+  { type: "vision", label: "VISION", color: "bg-cyan-800", description: "Automation runtime — trigger or execute sub-workflows", category: "HDV" },
+  { type: "hope", label: "HOPE", color: "bg-green-800", description: "Auth gateway — validates user JWT and enriches context", category: "HDV" },
   // Workflows
   { type: "subWorkflow", label: "Sub-workflow", color: "bg-fuchsia-700", description: "Call another workflow", category: "Workflows" },
   // Utilities
@@ -160,6 +167,7 @@ export function EditorPage() {
   const [quickAdd, setQuickAdd] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null);
   const [quickAddSearch, setQuickAddSearch] = useState("");
   const [stats, setStats] = useState<{ total: number; successRate: number | null; avgDurationMs: number | null } | null>(null);
+  const [showDreamGenerator, setShowDreamGenerator] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -488,6 +496,17 @@ export function EditorPage() {
     input.click();
   }
 
+  function importGeneratedWorkflow(importedNodes: unknown[], importedEdges: unknown[]) {
+    const offset = { x: 100, y: 100 };
+    const typed = (importedNodes as Node<NodeData>[]).map((n) => ({
+      ...n,
+      position: { x: (n.position?.x ?? 0) + offset.x, y: (n.position?.y ?? 0) + offset.y },
+    }));
+    setNodes((prev) => [...prev, ...typed]);
+    setEdges((prev) => [...prev, ...(importedEdges as Edge[])]);
+    pushHistory([...nodes, ...typed], [...edges, ...(importedEdges as Edge[])]);
+  }
+
   function updateNodeData(nodeId: string, newData: Partial<NodeData>) {
     setNodes((nds) =>
       nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...newData } } : n))
@@ -574,6 +593,13 @@ export function EditorPage() {
             className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs transition"
           >
             Import
+          </button>
+          <button
+            onClick={() => setShowDreamGenerator(true)}
+            className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-indigo-100 rounded-lg text-xs transition font-medium"
+            title="Generate a workflow with DREAM AI"
+          >
+            ✦ Generate
           </button>
           <button
             onClick={exportWorkflow}
@@ -858,6 +884,13 @@ export function EditorPage() {
       </div>
 
       <ExecutionPanel nodeStatuses={nodeStatuses} executionId={executionId} />
+
+      {showDreamGenerator && (
+        <DreamGenerator
+          onClose={() => setShowDreamGenerator(false)}
+          onImport={importGeneratedWorkflow}
+        />
+      )}
     </div>
   );
 }
