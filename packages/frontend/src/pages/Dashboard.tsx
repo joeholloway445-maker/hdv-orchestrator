@@ -143,6 +143,12 @@ export function DashboardPage() {
             Webhooks
           </button>
           <button
+            onClick={() => navigate("/schedules")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Schedules
+          </button>
+          <button
             onClick={() => navigate("/tokens")}
             className="text-sm text-gray-400 hover:text-white transition"
           >

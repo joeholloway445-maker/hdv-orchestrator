@@ -2,6 +2,7 @@
  * Expression evaluator supporting:
  *   {{ $json.field }}               — alias for $input.field
  *   {{ $input.field.sub }}          — dot-path access
+ *   {{ $input.items[0].name }}      — array index access (negative indices supported)
  *   {{ $vars.KEY }}                 — global variables
  *   {{ $env.VAR_NAME }}             — environment variable
  *   {{ $now }}                      — current ISO timestamp
@@ -12,9 +13,33 @@
  *   {{ someKey }}                   — top-level field shorthand
  */
 
+// Normalise a bracket-notation path segment: "items[0]" → ["items", 0]
+function expandSegment(segment: string): Array<string | number> {
+  const results: Array<string | number> = [];
+  // Match bracket indices within the segment: e.g. "items[0][-1]"
+  const bracketRe = /([^\[]*)\[(-?\d+)\]/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = bracketRe.exec(segment)) !== null) {
+    if (match[1]) results.push(match[1]);
+    results.push(parseInt(match[2], 10));
+    lastIndex = bracketRe.lastIndex;
+  }
+  const tail = segment.slice(lastIndex);
+  if (tail) results.push(tail);
+  return results.length ? results : [segment];
+}
+
 function dotGet(obj: unknown, path: string): unknown {
-  return path.split(".").reduce((acc: unknown, k) => {
+  const rawSegments = path.split(".");
+  const segments: Array<string | number> = rawSegments.flatMap(expandSegment);
+  return segments.reduce((acc: unknown, k) => {
     if (acc === null || acc === undefined) return undefined;
+    if (typeof k === "number") {
+      if (!Array.isArray(acc)) return undefined;
+      const idx = k < 0 ? acc.length + k : k;
+      return acc[idx];
+    }
     if (typeof acc === "object") return (acc as Record<string, unknown>)[k];
     return undefined;
   }, obj);
