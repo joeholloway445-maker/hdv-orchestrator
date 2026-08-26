@@ -439,7 +439,7 @@ export function NodeConfigPanel({
                     <input className={inputCls} value={(local.authHeaderName as string) || (local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key")} onChange={(e) => patch({ authHeaderName: e.target.value })} placeholder={local.authType === "hmac" ? "x-hub-signature-256" : "X-API-Key"} />
                   </div>
                 )}
-                {local.authType && local.authType !== "none" && (
+                {!!(local.authType as string) && (local.authType as string) !== "none" && (
                   <div className="mt-2">
                     <label className={labelCls}>{local.authType === "basic" ? "user:password" : local.authType === "hmac" ? "HMAC Secret" : "Secret Value"}</label>
                     <input className={inputCls} type="password" value={(local.authValue as string) || ""} onChange={(e) => patch({ authValue: e.target.value })} placeholder={local.authType === "basic" ? "username:password" : "secret"} />
@@ -1514,18 +1514,18 @@ export function NodeConfigPanel({
                   <label className={labelCls}>Key Mappings</label>
                   <button
                     className="text-xs text-blue-400 hover:text-blue-300"
-                    onClick={() => patch({ mappings: [...((local.mappings as Array<{ from: string; to: string }>) || []), { from: "", to: "" }] })}
+                    onClick={() => patch({ mappings: [...((local.mappings as Array<{ key: string; value: string }>) || []), { key: "", value: "" }] })}
                   >+ Add</button>
                 </div>
-                {((local.mappings as Array<{ from: string; to: string }>) || []).map((m, i) => (
+                {((local.mappings as Array<{ key: string; value: string }>) || []).map((m, i) => (
                   <div key={i} className="flex gap-1 items-center">
                     <input
                       className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
                       placeholder="old.key"
-                      value={m.from}
+                      value={m.key}
                       onChange={(e) => {
-                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
-                        n[i] = { ...n[i], from: e.target.value };
+                        const n = [...((local.mappings as Array<{ key: string; value: string }>) || [])];
+                        n[i] = { ...n[i], key: e.target.value };
                         patch({ mappings: n });
                       }}
                     />
@@ -1533,16 +1533,16 @@ export function NodeConfigPanel({
                     <input
                       className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs focus:outline-none"
                       placeholder="new.key"
-                      value={m.to}
+                      value={m.value}
                       onChange={(e) => {
-                        const n = [...((local.mappings as Array<{ from: string; to: string }>) || [])];
-                        n[i] = { ...n[i], to: e.target.value };
+                        const n = [...((local.mappings as Array<{ key: string; value: string }>) || [])];
+                        n[i] = { ...n[i], value: e.target.value };
                         patch({ mappings: n });
                       }}
                     />
                     <button
                       className="text-gray-500 hover:text-red-400 px-1 text-sm"
-                      onClick={() => patch({ mappings: ((local.mappings as Array<{ from: string; to: string }>) || []).filter((_, j) => j !== i) })}
+                      onClick={() => patch({ mappings: ((local.mappings as Array<{ key: string; value: string }>) || []).filter((_, j) => j !== i) })}
                     >×</button>
                   </div>
                 ))}

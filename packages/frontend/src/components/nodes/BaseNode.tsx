@@ -58,7 +58,7 @@ export function BaseNode({
         <div className="flex items-center gap-2">
           <span className="text-lg">{icon}</span>
           <span className="text-white font-semibold text-sm truncate flex-1">{data.label || "Node"}</span>
-          {data._pinnedData && (
+          {!!data._pinnedData && (
             <span title="Output pinned" className="text-xs opacity-70">📌</span>
           )}
           {statusDot && (
