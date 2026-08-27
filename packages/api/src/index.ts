@@ -19,6 +19,16 @@ import { simulateRouter } from "./routes/simulate";
 import { schedulesRouter } from "./routes/schedules";
 import { planRouter } from "./routes/plan";
 import { gpuRouter } from "./routes/gpu";
+// Sea-Scyte domain routes
+import { walletRouter } from "./routes/wallet";
+import { membershipRouter } from "./routes/membership";
+import { catalogRouter } from "./routes/catalog";
+import { shopRouter } from "./routes/shop";
+import { devicesRouter } from "./routes/devices";
+import { distributionRouter } from "./routes/distribution";
+import { newsRouter } from "./routes/news";
+import { dashboardRouter } from "./routes/dashboard";
+import { stripeWebhookRouter } from "./routes/stripeWebhook";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
@@ -78,6 +88,27 @@ app.use("/gpu", gpuRouter);
 app.use("/tenants", tenantsRouter);
 // HOPE companion endpoints
 app.use("/hope", verifyToken, hopeRouter);
+
+// ---------------------------------------------------------------------------
+// Sea-Scyte domain routes
+// ---------------------------------------------------------------------------
+// Stripe webhook — must be registered before express.json() in production so
+// the raw buffer is preserved for signature verification.  Here it runs after
+// the global JSON parser; switch to express.raw() per-route when stripe pkg
+// is installed.
+app.use("/stripe/webhook", stripeWebhookRouter);
+
+// Authenticated routes
+app.use("/wallet", verifyToken, walletRouter);
+app.use("/membership", verifyToken, membershipRouter);
+app.use("/devices", verifyToken, devicesRouter);
+app.use("/distribution", verifyToken, distributionRouter);
+app.use("/dashboard", verifyToken, dashboardRouter);
+
+// Public / mixed-auth routes
+app.use("/catalog", catalogRouter);
+app.use("/shop", shopRouter);
+app.use("/news", newsRouter);
 
 app.get("/health", async (_req, res) => {
   const checks: Record<string, string> = {};
