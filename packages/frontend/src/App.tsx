@@ -14,6 +14,7 @@ import { TemplatesPage } from "./pages/Templates";
 import { SchedulesPage } from "./pages/Schedules";
 import { GpuMarketplacePage } from "./pages/GpuMarketplace";
 import { PlanPage } from "./pages/Plan";
+import { SubscriptionPage } from "./pages/Subscription";
 import { CompanionPage } from "./pages/Companion";
 import { AdminPage } from "./pages/Admin";
 import { useAuthStore } from "./store/auth";
@@ -157,6 +158,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <PlanPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/subscription"
+              element={
+                <PrivateRoute>
+                  <SubscriptionPage />
                 </PrivateRoute>
               }
             />

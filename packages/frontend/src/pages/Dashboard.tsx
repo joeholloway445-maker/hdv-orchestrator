@@ -253,6 +253,12 @@ export function DashboardPage() {
             Plan
           </button>
           <button
+            onClick={() => navigate("/subscription")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Subscription
+          </button>
+          <button
             onClick={logout}
             className="text-sm text-gray-400 hover:text-white transition"
           >
