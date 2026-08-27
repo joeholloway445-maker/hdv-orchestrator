@@ -10,6 +10,7 @@ import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
 import { cleanupPayloads, payloadSummary } from "./lib/payload";
 import { startHealthServer } from "./health";
+import { notifyWebhooks } from "./lib/notifyWebhooks";
 
 const prisma = new PrismaClient();
 
@@ -90,6 +91,8 @@ const worker = new Worker(
         },
       });
       await cleanupPayloads(executionId);
+      // Notify outbound webhook endpoints (fire-and-forget)
+      notifyWebhooks(prisma, workflowId, tenantId, "workflow.success").catch(() => {});
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
@@ -99,6 +102,10 @@ const worker = new Worker(
       });
       await cleanupPayloads(executionId);
       const failTenantId = (await prisma.workflow.findUnique({ where: { id: workflowId }, select: { userId: true } }).catch(() => null))?.userId;
+      // Notify outbound webhook endpoints (fire-and-forget)
+      if (failTenantId) {
+        notifyWebhooks(prisma, workflowId, failTenantId, "workflow.failure", msg).catch(() => {});
+      }
       const failPayload = JSON.stringify({ type: "execution-failed", executionId, workflowId, tenantId: failTenantId, error: msg });
       await Promise.all([
         publisher.publish("workflow:telemetry", failPayload),

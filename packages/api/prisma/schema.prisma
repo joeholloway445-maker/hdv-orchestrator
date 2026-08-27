@@ -42,6 +42,7 @@ model User {
   membership      Membership?
   orders          Order[]
   devices         Device[]
+  webhooks        WebhookEndpoint[]
 }
 
 model Workflow {
@@ -306,4 +307,15 @@ model WorkflowTemplate {
   nodes       Json
   edges       Json
   createdAt   DateTime @default(now())
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url       String
+  secret    String
+  events    String[] @default(["workflow.success", "workflow.failure"])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
