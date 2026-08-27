@@ -16,6 +16,8 @@ import { tokensRouter } from "./routes/tokens";
 import { templatesRouter } from "./routes/templates";
 import { simulateRouter } from "./routes/simulate";
 import { schedulesRouter } from "./routes/schedules";
+import { planRouter } from "./routes/plan";
+import { gpuRouter } from "./routes/gpu";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
@@ -67,6 +69,10 @@ app.use("/templates", verifyToken, templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);
 app.use("/schedules", verifyToken, schedulesRouter);
+// Subscription plan management
+app.use("/plan", verifyToken, planRouter);
+// GPU marketplace (listing read is public; write routes check user inside handler)
+app.use("/gpu", gpuRouter);
 
 app.get("/health", async (_req, res) => {
   const checks: Record<string, string> = {};
