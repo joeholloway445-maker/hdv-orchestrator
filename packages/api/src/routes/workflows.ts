@@ -8,12 +8,21 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req: AuthRequest, res) => {
-  const { limit } = parsePagination(req.query as Record<string, unknown>);
-  const cursor = req.query.cursor as string | undefined;
+  const q = req.query.q as string | undefined;
   const search = req.query.search as string | undefined;
+  const searchTerm = q ?? search;
   const tag = req.query.tag as string | undefined;
   const active = req.query.active as string | undefined;
   const tenantId = req.query.tenantId as string | undefined;
+
+  // Page-based pagination (preferred); fall back to cursor for backward compat
+  const pageRaw = req.query.page as string | undefined;
+  const limitRaw = req.query.limit as string | undefined;
+  const cursor = req.query.cursor as string | undefined;
+
+  const limit = Math.min(Number(limitRaw) || 20, 100);
+  const pageNum = Math.max(Number(pageRaw) || 1, 1);
+  const skip = cursor ? undefined : (pageNum - 1) * limit;
 
   // When ?tenantId is provided, filter across all users belonging to that tenant
   // (identified by the canonical "tenant:{id}" tag); otherwise scope to this user.
@@ -24,15 +33,15 @@ router.get("/", async (req: AuthRequest, res) => {
   if (cursor) where.id = { lt: cursor };
   if (active === "true") where.active = true;
   if (active === "false") where.active = false;
-  if (search) where.OR = [
-    { name: { contains: search, mode: "insensitive" } },
-    { description: { contains: search, mode: "insensitive" } },
+  if (searchTerm) where.OR = [
+    { name: { contains: searchTerm, mode: "insensitive" } },
+    { description: { contains: searchTerm, mode: "insensitive" } },
   ];
   // Explicit tag filter stacks on top of (or replaces) the tenant tag filter
   if (tag && !tenantId) where.tags = { has: tag };
   if (tag && tenantId) where.tags = { hasEvery: [`tenant:${tenantId}`, tag] };
 
-  const workflows = await (prisma as any).workflow.findMany({
+  const findArgs: Record<string, unknown> = {
     where,
     orderBy: { updatedAt: "desc" },
     take: limit,
@@ -44,9 +53,28 @@ router.get("/", async (req: AuthRequest, res) => {
         select: { status: true, startedAt: true },
       },
     },
-  });
+  };
+  if (skip !== undefined) findArgs.skip = skip;
+
+  const [workflows, total] = await Promise.all([
+    (prisma as any).workflow.findMany(findArgs),
+    (prisma as any).workflow.count({ where }),
+  ]);
+
+  // Return paginated response; include legacy nextCursor for backward compat
   const nextCursor = workflows.length === limit ? workflows[workflows.length - 1].id : null;
-  res.json({ items: workflows, nextCursor });
+  res.json({
+    workflows,
+    pagination: {
+      page: pageNum,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+    // Legacy fields kept for backward compatibility
+    items: workflows,
+    nextCursor,
+  });
 });
 
 // ── Import (must be before /:id to avoid route conflicts) ─────────────────────

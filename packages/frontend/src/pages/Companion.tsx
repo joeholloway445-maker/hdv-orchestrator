@@ -137,9 +137,13 @@ export function CompanionPage() {
   useEffect(() => {
     fetchCompanion();
     api
-      .get<Workflow[] | { items?: Workflow[] }>("/workflows")
+      .get<Workflow[] | { workflows?: Workflow[]; items?: Workflow[] }>("/workflows?limit=100")
       .then(({ data }) => {
-        setWorkflows(Array.isArray(data) ? data : (data.items ?? []));
+        if (Array.isArray(data)) {
+          setWorkflows(data);
+        } else {
+          setWorkflows(data.workflows ?? data.items ?? []);
+        }
       })
       .catch(() => {});
   }, []);
