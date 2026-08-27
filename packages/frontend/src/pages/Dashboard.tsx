@@ -5,6 +5,7 @@ import { useAuthStore } from "../store/auth";
 import { DreamGenerator } from "../components/DreamGenerator";
 import { StatusChip } from "../components/StatusChip";
 import { TimeAgo } from "../components/TimeAgo";
+import { PlanBadge } from "../components/PlanBadge";
 
 interface Workflow {
   id: string;
@@ -219,8 +220,21 @@ export function DashboardPage() {
           >
             API Tokens
           </button>
+          <button
+            onClick={() => navigate("/gpu")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            GPU
+          </button>
           <span className="text-gray-600">|</span>
+          <PlanBadge />
           <span className="text-gray-400 text-sm">{user?.email}</span>
+          <button
+            onClick={() => navigate("/plan")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Plan
+          </button>
           <button
             onClick={logout}
             className="text-sm text-gray-400 hover:text-white transition"
