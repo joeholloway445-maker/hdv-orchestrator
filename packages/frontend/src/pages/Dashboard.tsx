@@ -197,6 +197,12 @@ export function DashboardPage() {
             Executions
           </button>
           <button
+            onClick={() => navigate("/history")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            History
+          </button>
+          <button
             onClick={() => navigate("/credentials")}
             className="text-sm text-gray-400 hover:text-white transition"
           >

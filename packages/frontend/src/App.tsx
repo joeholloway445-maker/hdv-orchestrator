@@ -17,6 +17,7 @@ import { PlanPage } from "./pages/Plan";
 import { SubscriptionPage } from "./pages/Subscription";
 import { CompanionPage } from "./pages/Companion";
 import { AdminPage } from "./pages/Admin";
+import { ExecutionHistoryPage } from "./pages/ExecutionHistory";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -94,6 +95,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <VariablesPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/history"
+              element={
+                <PrivateRoute>
+                  <ExecutionHistoryPage />
                 </PrivateRoute>
               }
             />

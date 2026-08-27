@@ -279,6 +279,45 @@ router.post("/:id/test-node", async (req: AuthRequest, res) => {
   }
 });
 
+// ── Execution History ─────────────────────────────────────────────────────
+
+router.get("/:id/executions", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
+  const executions = await prisma.execution.findMany({
+    where: {
+      workflowId: req.params.id,
+      ...(cursor ? { id: { lt: cursor } } : {}),
+    },
+    orderBy: { startedAt: "desc" },
+    take: limit,
+    select: { id: true, status: true, startedAt: true, finishedAt: true, data: true },
+  });
+
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
+});
+
+router.get("/:id/executions/:execId", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const exec = await prisma.execution.findFirst({
+    where: { id: req.params.execId, workflowId: req.params.id },
+    include: { nodeLogs: { orderBy: { startedAt: "asc" } } },
+  });
+  if (!exec) return res.status(404).json({ error: "not found" });
+  res.json(exec);
+});
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 
 router.get("/:id/stats", async (req: AuthRequest, res) => {
