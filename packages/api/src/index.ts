@@ -92,7 +92,7 @@ app.use("/memory", verifyToken, memoryRouter);
 app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
-app.use("/templates", verifyToken, templatesRouter);
+app.use("/templates", templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);
 app.use("/schedules", verifyToken, schedulesRouter);

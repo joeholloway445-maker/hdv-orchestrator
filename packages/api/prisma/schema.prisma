@@ -280,3 +280,17 @@ model HopeCompanion {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// Workflow Templates — built-in templates tenants can browse and clone.
+// ---------------------------------------------------------------------------
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  category    String   @default("general")
+  tier        String   @default("FREE")
+  nodes       Json
+  edges       Json
+  createdAt   DateTime @default(now())
+}

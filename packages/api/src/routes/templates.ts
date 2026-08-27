@@ -1,10 +1,44 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { AuthRequest } from "../middleware/auth";
+import { AuthRequest, verifyToken } from "../middleware/auth";
+import { seedTemplates } from "../seed/templates";
 
 const router = Router();
 const prisma = new PrismaClient();
 
+// ---------------------------------------------------------------------------
+// Type alias for the WorkflowTemplate table accessed via prisma.$queryRaw /
+// prisma.$executeRaw — the generated client is not regenerated in this
+// session, so we reach it through a typed cast.
+// ---------------------------------------------------------------------------
+type WorkflowTemplateRecord = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  tier: string;
+  nodes: unknown;
+  edges: unknown;
+  createdAt: Date;
+};
+
+function templateClient(p: PrismaClient) {
+  return (p as unknown as {
+    workflowTemplate: {
+      findMany: (args: {
+        where?: Record<string, unknown>;
+        orderBy?: Record<string, unknown>;
+      }) => Promise<WorkflowTemplateRecord[]>;
+      findUnique: (args: {
+        where: { id: string };
+      }) => Promise<WorkflowTemplateRecord | null>;
+    };
+  }).workflowTemplate;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory templates kept for the existing /:id/use route (backward compat).
+// ---------------------------------------------------------------------------
 const TEMPLATES = [
   {
     id: "http-to-email",
@@ -409,20 +443,79 @@ const TEMPLATES = [
   },
 ];
 
-// GET /templates — public list
-router.get("/", (_req, res) => {
-  res.json(TEMPLATES.map(({ nodes: _, edges: __, ...t }) => t));
+// ---------------------------------------------------------------------------
+// Admin seed endpoint — must be registered before /:id routes
+// ---------------------------------------------------------------------------
+
+router.post("/seed", async (req, res) => {
+  const adminKey = req.headers["x-admin-key"];
+  if (!adminKey || adminKey !== process.env.ADMIN_SECRET_KEY) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  try {
+    const seeded = await seedTemplates(prisma);
+    res.json({ seeded, message: `${seeded} built-in workflow templates seeded successfully` });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Seed failed", detail: message });
+  }
 });
 
-// GET /templates/:id — full template
-router.get("/:id", (_req, res) => {
-  const tpl = TEMPLATES.find((t) => t.id === _req.params.id);
-  if (!tpl) return res.status(404).json({ error: "Template not found" });
-  res.json(tpl);
+// ---------------------------------------------------------------------------
+// GET /templates — list all DB-backed templates (public); supports ?category=
+// and ?tier= query filters.
+// ---------------------------------------------------------------------------
+
+router.get("/", async (req, res) => {
+  const category = req.query.category as string | undefined;
+  const tier = req.query.tier as string | undefined;
+
+  const where: Record<string, unknown> = {};
+  if (category) where.category = category;
+  if (tier) where.tier = tier;
+
+  try {
+    const templates = await templateClient(prisma).findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+    });
+    res.json(templates);
+  } catch {
+    // Fallback to in-memory if the DB table doesn't exist yet (pre-migration)
+    let items = TEMPLATES.map(({ nodes: _, edges: __, ...t }) => t);
+    if (category) items = items.filter((t) => (t as Record<string, unknown>).category === category);
+    if (tier) items = items.filter((t) => (t as Record<string, unknown>).tier === tier);
+    res.json(items);
+  }
 });
 
-// POST /templates/:id/use — create a new workflow from template
-router.post("/:id/use", async (req: AuthRequest, res) => {
+// ---------------------------------------------------------------------------
+// GET /templates/:id — full template (in-memory first, then DB)
+// ---------------------------------------------------------------------------
+
+router.get("/:id", async (req, res) => {
+  // Check in-memory first (backward compat)
+  const tpl = TEMPLATES.find((t) => t.id === req.params.id);
+  if (tpl) return res.json(tpl);
+
+  // Fall through to DB
+  try {
+    const dbTpl = await templateClient(prisma).findUnique({
+      where: { id: req.params.id },
+    });
+    if (!dbTpl) return res.status(404).json({ error: "Template not found" });
+    res.json(dbTpl);
+  } catch {
+    return res.status(404).json({ error: "Template not found" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /templates/:id/use — create a new workflow from an in-memory template
+// (auth required)
+// ---------------------------------------------------------------------------
+
+router.post("/:id/use", verifyToken, async (req: AuthRequest, res) => {
   const tpl = TEMPLATES.find((t) => t.id === req.params.id);
   if (!tpl) return res.status(404).json({ error: "Template not found" });
 
@@ -446,6 +539,50 @@ router.post("/:id/use", async (req: AuthRequest, res) => {
       description: tpl.description,
     },
   });
+  res.status(201).json(workflow);
+});
+
+// ---------------------------------------------------------------------------
+// POST /templates/:id/clone — clone a DB WorkflowTemplate into a new Workflow
+// for the authenticated tenant (auth required)
+// ---------------------------------------------------------------------------
+
+router.post("/:id/clone", verifyToken, async (req: AuthRequest, res) => {
+  let dbTpl: WorkflowTemplateRecord | null = null;
+
+  try {
+    dbTpl = await templateClient(prisma).findUnique({
+      where: { id: req.params.id },
+    });
+  } catch {
+    return res.status(503).json({ error: "Template store unavailable" });
+  }
+
+  if (!dbTpl) return res.status(404).json({ error: "Template not found" });
+
+  // Look up the user's tenantId so we can tag the cloned workflow.
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { tenantId: true },
+  });
+  const tenantTag = user?.tenantId ? `tenant:${user.tenantId}` : null;
+  const tags = [
+    `template:${dbTpl.id}`,
+    `category:${dbTpl.category}`,
+    ...(tenantTag ? [tenantTag] : []),
+  ];
+
+  const workflow = await prisma.workflow.create({
+    data: {
+      name: dbTpl.name,
+      userId: req.userId!,
+      nodes: dbTpl.nodes as object[],
+      edges: dbTpl.edges as object[],
+      description: dbTpl.description,
+      tags,
+    },
+  });
+
   res.status(201).json(workflow);
 });
 
