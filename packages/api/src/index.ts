@@ -1,5 +1,9 @@
 import "dotenv/config";
 import express from "express";
+import swaggerUi from "swagger-ui-express";
+import { readFileSync } from "fs";
+import { load } from "js-yaml";
+import { join } from "path";
 import cors from "cors";
 import http from "http";
 import helmet from "helmet";
@@ -71,6 +75,12 @@ app.use(supabaseAuth);
 // Per-tenant rate limit (500 req/min) — applied after auth so tenant ID is resolved.
 // Requests with no tenant ID are skipped and fall through to the global IP limiter only.
 app.use(tenantLimiter);
+
+// Swagger UI — served at /docs
+const swaggerDoc = load(
+  readFileSync(join(__dirname, "../../openapi.yaml"), "utf8")
+) as object;
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 app.use("/auth", authRouter);
 app.use("/webhooks/list", verifyToken, webhooksRouter);

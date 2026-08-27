@@ -4,6 +4,12 @@ A production-grade, n8n-style visual DAG automation engine built around the **Bi
 
 ---
 
+## API Docs
+
+API docs available at **http://localhost:4000/docs** when running locally.
+
+---
+
 ## Overview
 
 HDV Orchestrator provides:
