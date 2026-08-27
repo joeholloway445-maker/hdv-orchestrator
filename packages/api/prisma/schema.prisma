@@ -26,6 +26,7 @@ model User {
   plan            SubscriptionPlan @default(FREE)
   tenantId        String?          @unique
   byokBaseUrl     String?
+  byokApiKey      String?
   byokModel       String?
   maxActiveParams Int?
   createdAt       DateTime         @default(now())

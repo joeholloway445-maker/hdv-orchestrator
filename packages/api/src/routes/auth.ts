@@ -43,6 +43,41 @@ router.post("/login", async (req, res) => {
   res.json({ token, user: { id: user.id, email: user.email, isAdmin } });
 });
 
+/**
+ * PATCH /auth/byok
+ * Allows BYOK-plan users to configure their own OpenAI-compatible endpoint.
+ * Requires a valid JWT / API token; user must be on the BYOK subscription plan.
+ */
+router.patch("/byok", verifyToken, async (req: AuthRequest, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.plan !== "BYOK") {
+    return res.status(403).json({ error: "BYOK endpoint configuration requires a BYOK plan" });
+  }
+
+  const { byokBaseUrl, byokApiKey, byokModel } = req.body as {
+    byokBaseUrl?: string;
+    byokApiKey?: string;
+    byokModel?: string;
+  };
+
+  if (!byokBaseUrl || !byokApiKey) {
+    return res.status(400).json({ error: "byokBaseUrl and byokApiKey are required" });
+  }
+
+  // byokApiKey added in migration 20260827_byok_fields; cast until `prisma generate` reflects it
+  await (prisma.user.update as Function)({
+    where: { id: user.id },
+    data: {
+      byokBaseUrl: byokBaseUrl ?? undefined,
+      byokApiKey: byokApiKey ?? undefined,
+      byokModel: byokModel ?? undefined,
+    },
+  });
+
+  return res.json({ ok: true });
+});
+
 export { router as authRouter };
 
 // ---------------------------------------------------------------------------
