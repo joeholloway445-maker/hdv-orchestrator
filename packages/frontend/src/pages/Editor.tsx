@@ -471,21 +471,14 @@ export function EditorPage() {
     setEdges((wf.edges as Edge[]) || []);
   }
 
-  function exportWorkflow() {
-    const blob = new Blob([JSON.stringify({
-      name: workflow?.name,
-      tags: workflow?.tags ?? [],
-      errorWorkflowId: workflow?.errorWorkflowId,
-      timeoutMs: workflow?.timeoutMs,
-      nodes,
-      edges,
-    }, null, 2)], {
-      type: "application/json",
-    });
+  async function exportWorkflow() {
+    if (!id) return;
+    const { data } = await api.get(`/workflows/${id}/export`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${workflow?.name || "workflow"}.json`;
+    a.download = `${workflow?.name?.replace(/\s/g, "_") || "workflow"}.hdv.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -493,23 +486,19 @@ export function EditorPage() {
   function importWorkflow() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json";
+    input.accept = ".json,.hdv.json";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       const text = await file.text();
-      const parsed = JSON.parse(text) as { nodes: Node<NodeData>[]; edges: Edge[]; name?: string; tags?: string[]; errorWorkflowId?: string; timeoutMs?: number };
-      setNodes(parsed.nodes || []);
-      setEdges(parsed.edges || []);
-      if (workflow) {
-        setWorkflow({
-          ...workflow,
-          ...(parsed.name ? { name: parsed.name } : {}),
-          ...(parsed.tags ? { tags: parsed.tags } : {}),
-          ...(parsed.errorWorkflowId !== undefined ? { errorWorkflowId: parsed.errorWorkflowId } : {}),
-          ...(parsed.timeoutMs !== undefined ? { timeoutMs: parsed.timeoutMs } : {}),
-        });
-      }
+      const parsed = JSON.parse(text) as { name?: string; nodes?: unknown[]; edges?: unknown[]; version?: string };
+      const { data } = await api.post("/workflows/import", {
+        name: parsed.name || file.name.replace(/\.hdv\.json$|\.json$/, ""),
+        nodes: parsed.nodes || [],
+        edges: parsed.edges || [],
+      });
+      const created = data as { id: string };
+      navigate(`/editor/${created.id}`);
     };
     input.click();
   }
