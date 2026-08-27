@@ -14,6 +14,7 @@ import { TemplatesPage } from "./pages/Templates";
 import { SchedulesPage } from "./pages/Schedules";
 import { GpuPage } from "./pages/Gpu";
 import { PlanPage } from "./pages/Plan";
+import { CompanionPage } from "./pages/Companion";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -148,6 +149,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <PlanPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/companion"
+              element={
+                <PrivateRoute>
+                  <CompanionPage />
                 </PrivateRoute>
               }
             />

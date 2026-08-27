@@ -226,6 +226,12 @@ export function DashboardPage() {
           >
             GPU
           </button>
+          <button
+            onClick={() => navigate("/companion")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Companion
+          </button>
           <span className="text-gray-600">|</span>
           <PlanBadge />
           <span className="text-gray-400 text-sm">{user?.email}</span>
