@@ -9,43 +9,43 @@ function interpolate(template: string, data: unknown): string {
   return result !== undefined && result !== null ? String(result) : "";
 }
 
-export async function executeAI(node: NodeDef, $input: Record<string, unknown>): Promise<unknown> {
-  const apiKey = String(node.data?.apiKey || process.env.ANTHROPIC_API_KEY || "");
-  if (!apiKey) throw new Error("AI node: no API key configured (set apiKey in node or ANTHROPIC_API_KEY env var)");
+// OpenAI-compatible response shape
+interface OAIResponse {
+  choices: Array<{ message: { content: string } }>;
+  usage?: Record<string, unknown>;
+}
 
-  const model = String(node.data?.model || "claude-haiku-4-5-20251001");
-  // Alias common short names to full model IDs
-  const MODEL_ALIASES: Record<string, string> = {
-    "haiku": "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-5",
-    "opus": "claude-opus-5",
-    "sonnet-4": "claude-sonnet-4-6",
-    "fable": "claude-fable-5",
-  };
-  const resolvedModel = MODEL_ALIASES[model] ?? model;
+export async function executeAI(node: NodeDef, $input: Record<string, unknown>): Promise<unknown> {
+  const baseUrl = String(
+    node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434"
+  ).replace(/\/$/, "");
+  // API key is optional — Ollama and many local runtimes don't require one
+  const apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+
+  const model = String(node.data?.model || process.env.AI_MODEL || "llama3.2");
+
   const systemPrompt = node.data?.systemPrompt ? interpolate(String(node.data.systemPrompt), $input) : "";
   const userPrompt = node.data?.userPrompt ? interpolate(String(node.data.userPrompt), $input) : JSON.stringify($input);
   const maxTokens = parseInt(String(node.data?.maxTokens || "1024"), 10);
-  const temperature = parseFloat(String(node.data?.temperature ?? "1"));
+  const temperature = parseFloat(String(node.data?.temperature ?? "0.7"));
 
-  const baseUrl = String(node.data?.baseUrl || "https://api.anthropic.com");
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+  messages.push({ role: "user", content: userPrompt });
 
-  const body: Record<string, unknown> = {
-    model: resolvedModel,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: userPrompt }],
-  };
-  if (systemPrompt) body.system = systemPrompt;
-  if (!isNaN(temperature)) body.temperature = Math.max(0, Math.min(1, temperature));
-
-  const resp = await fetch(`${baseUrl}/v1/messages`, {
+  const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: maxTokens,
+      temperature: Math.max(0, Math.min(2, isNaN(temperature) ? 0.7 : temperature)),
+      stream: false,
+    }),
   });
 
   if (!resp.ok) {
@@ -53,8 +53,8 @@ export async function executeAI(node: NodeDef, $input: Record<string, unknown>):
     throw new Error(`AI node: API error ${resp.status} — ${errText}`);
   }
 
-  const result = await resp.json() as { content: Array<{ type: string; text: string }>; usage?: Record<string, unknown> };
-  const text = result.content?.find((c) => c.type === "text")?.text ?? "";
+  const result = (await resp.json()) as OAIResponse;
+  const text = result.choices?.[0]?.message?.content ?? "";
 
   let parsed: unknown = text;
   try {

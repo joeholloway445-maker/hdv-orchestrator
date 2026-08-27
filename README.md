@@ -70,7 +70,11 @@ npm test
 | `REDIS_URL`               | ✅        | Redis URL (`redis://localhost:6379`)                           |
 | `JWT_SECRET`              | ✅        | Long random string for signing auth tokens                     |
 | `ENCRYPTION_KEY`          | ✅        | 64-char hex string for AES-256-GCM credential encryption       |
-| `ANTHROPIC_API_KEY`       | ✅        | Powers APEX (AI routing) and DREAM (simulation) nodes          |
+| `AI_BASE_URL`             | ✅        | OpenAI-compatible inference URL (e.g. `http://localhost:11434` for Ollama) |
+| `AI_MODEL`                | ✅        | Default model name served by your runtime (e.g. `llama3.2`)   |
+| `AI_API_KEY`              | optional | API key for inference endpoint (not needed for local Ollama)   |
+| `AI_MODEL_FAST`           | optional | Smaller/faster model for low-budget tasks                      |
+| `AI_MODEL_POWER`          | optional | Larger model for high-complexity/security tasks                |
 | `SUPABASE_URL`            | optional | Supabase project URL (enables HOPE auth node)                  |
 | `SUPABASE_ANON_KEY`       | optional | Supabase anon key                                              |
 | `SUPABASE_SERVICE_ROLE_KEY` | optional | Supabase service role key                                    |

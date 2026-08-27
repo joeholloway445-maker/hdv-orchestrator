@@ -6,13 +6,18 @@
  * FAILED and the execution halts.
  *
  * Configurable checks (all enabled by default):
- *   - `checkPayloadSize`  : reject $input objects exceeding maxPayloadKb
- *   - `checkForbiddenKeys`: reject $input containing sensitive key patterns
- *   - `checkSsrf`         : reject HTTP URLs that target private IP ranges
- *   - `checkEntropyScore` : block suspiciously high-entropy strings (potential exfil)
- *   - `auditLabel`        : tag every audit log entry with this label
+ *   - `checkPayloadSize`    : reject $input objects exceeding maxPayloadKb
+ *   - `checkForbiddenKeys`  : reject $input containing sensitive key patterns
+ *   - `checkSsrf`           : reject HTTP URLs that target private IP ranges
+ *   - `checkEntropyScore`   : block suspiciously high-entropy strings (potential exfil)
+ *   - `checkMaliciousIntent`: block payloads containing shell/SQL/fork-bomb patterns
+ *   - `auditLabel`          : tag every audit log entry with this label
+ *
+ * All blocked decisions are recorded in a tamper-evident hash-chain (globalAuditChain).
  */
 import { interpolate as _interpolate } from "../lib/expr";
+import { globalAuditLog } from "../hdv/audit.js";
+import { globalAuditChain } from "../hdv/hashchain.js";
 
 interface NodeDef {
   data: Record<string, unknown>;
@@ -22,6 +27,19 @@ interface NodeDef {
 const FORBIDDEN_KEY_PATTERNS = [
   /password/i, /secret/i, /private_key/i, /private-key/i, /creditcard/i, /credit_card/i,
   /ssn/i, /social_security/i, /cvv/i,
+];
+
+// Malicious-intent heuristics (from HDV_Foundation/knoll/laws.ts)
+const MALICIOUS_PATTERNS: readonly RegExp[] = [
+  /\brm\s+-rf\b/i,
+  /\bdrop\s+table\b/i,
+  /\bdelete\s+from\b/i,
+  /;\s*shutdown\b/i,
+  /\bexfiltrate\b/i,
+  /\bsteal\s+(?:credentials|secrets|tokens|passwords)\b/i,
+  /\b(?:disable|bypass|kill)\s+knoll\b/i,
+  /\bfork\s*bomb\b/i,
+  /:\(\)\s*\{.*\}\s*;\s*:/,
 ];
 
 // Private IP ranges that should never be reached via HTTP (SSRF prevention)
@@ -77,6 +95,22 @@ function findForbiddenKeys(obj: unknown, extraPatterns: RegExp[] = []): string[]
   return hits;
 }
 
+function collectStrings(obj: unknown): string[] {
+  if (typeof obj === "string") return [obj];
+  if (Array.isArray(obj)) return obj.flatMap(collectStrings);
+  if (obj !== null && typeof obj === "object") {
+    return Object.values(obj as Record<string, unknown>).flatMap(collectStrings);
+  }
+  return [];
+}
+
+function checkMaliciousIntentPatterns(obj: unknown): string[] {
+  const haystack = collectStrings(obj).join(" \n ");
+  return MALICIOUS_PATTERNS
+    .filter((p) => p.test(haystack))
+    .map((p) => String(p));
+}
+
 export async function executeKnoll(
   node: NodeDef,
   $input: Record<string, unknown>,
@@ -85,14 +119,12 @@ export async function executeKnoll(
   const checkPayloadSize = node.data?.checkPayloadSize !== false;
   const checkForbiddenKeys = node.data?.checkForbiddenKeys !== false;
   const checkSsrf = node.data?.checkSsrf !== false;
-  // Support both checkEntropyScore (API simulate.ts) and checkEntropy (NodeConfigPanel)
   const checkEntropyScore = node.data?.checkEntropyScore === true || node.data?.checkEntropy === true;
+  const checkMalicious = node.data?.checkMaliciousIntent !== false;
   const maxPayloadKb = parseInt(String(node.data?.maxPayloadKb || "512"), 10);
-  // Support both entropyThreshold and maxEntropyBits field names
   const entropyThreshold = parseFloat(String(node.data?.entropyThreshold || node.data?.maxEntropyBits || "5.5"));
   const entropyMinLen = parseInt(String(node.data?.entropyMinLen || "64"), 10);
 
-  // Additional forbidden key patterns from node config (comma-separated)
   const extraForbidKeys = String(node.data?.forbidKeys || "")
     .split(",")
     .map((k) => k.trim())
@@ -101,7 +133,6 @@ export async function executeKnoll(
 
   const violations: string[] = [];
 
-  // 1. Payload size check
   if (checkPayloadSize) {
     const payloadBytes = JSON.stringify($input).length;
     if (payloadBytes > maxPayloadKb * 1024) {
@@ -109,7 +140,6 @@ export async function executeKnoll(
     }
   }
 
-  // 2. Forbidden key check
   if (checkForbiddenKeys) {
     const forbidden = findForbiddenKeys($input, extraForbidKeys);
     if (forbidden.length > 0) {
@@ -117,7 +147,6 @@ export async function executeKnoll(
     }
   }
 
-  // 3. SSRF check
   if (checkSsrf) {
     const ssrfUrls = findSsrfUrls($input);
     if (ssrfUrls.length > 0) {
@@ -125,7 +154,6 @@ export async function executeKnoll(
     }
   }
 
-  // 4. Entropy check (exfil detection)
   if (checkEntropyScore) {
     const highEntropy = findHighEntropyStrings($input, entropyThreshold, entropyMinLen);
     if (highEntropy.length > 0) {
@@ -133,10 +161,27 @@ export async function executeKnoll(
     }
   }
 
+  if (checkMalicious) {
+    const patterns = checkMaliciousIntentPatterns($input);
+    if (patterns.length > 0) {
+      violations.push(`Malicious intent detected: ${patterns.slice(0, 2).join(", ")}`);
+    }
+  }
+
+  const execObj = $input.$execution as Record<string, unknown> | undefined;
+  const packetId = String($input._executionId || execObj?.id || auditLabel + "-" + Date.now());
+
   if (violations.length > 0) {
     const summary = violations.join("; ");
+    // Record BLOCKED in audit log + hash-chain
+    const entry = globalAuditLog.record(packetId, "BLOCKED", summary);
+    globalAuditChain.append(entry);
     throw new Error(`KNOLL [${auditLabel}] BLOCKED — ${summary}`);
   }
+
+  // Record ALLOWED in audit log + hash-chain
+  const entry = globalAuditLog.record(packetId, "ALLOWED");
+  globalAuditChain.append(entry);
 
   return {
     ...$input,
@@ -144,11 +189,13 @@ export async function executeKnoll(
       label: auditLabel,
       passed: true,
       timestamp: new Date().toISOString(),
+      chainHead: globalAuditChain.head(),
       checks: {
         payloadSize: checkPayloadSize,
         forbiddenKeys: checkForbiddenKeys,
         ssrf: checkSsrf,
         entropy: checkEntropyScore,
+        maliciousIntent: checkMalicious,
       },
     },
   };
