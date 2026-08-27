@@ -12,7 +12,7 @@ import { TokensPage } from "./pages/Tokens";
 import { WebhooksPage } from "./pages/Webhooks";
 import { TemplatesPage } from "./pages/Templates";
 import { SchedulesPage } from "./pages/Schedules";
-import { GpuPage } from "./pages/Gpu";
+import { GpuMarketplacePage } from "./pages/GpuMarketplace";
 import { PlanPage } from "./pages/Plan";
 import { CompanionPage } from "./pages/Companion";
 import { AdminPage } from "./pages/Admin";
@@ -148,7 +148,7 @@ export default function App() {
               path="/gpu"
               element={
                 <PrivateRoute>
-                  <GpuPage />
+                  <GpuMarketplacePage />
                 </PrivateRoute>
               }
             />
