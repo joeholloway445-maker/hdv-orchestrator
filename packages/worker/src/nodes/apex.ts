@@ -68,6 +68,26 @@ export interface ApexDispatchResult {
   apexResponseParsed: unknown;
   apexRoutedLocally: boolean;
   apexUsage?: unknown;
+  _gpuListingUrl?: string;
+}
+
+/** Fetches the cheapest active GPU listing from the marketplace. */
+async function fetchCheapestGpuListing(): Promise<{ endpointUrl: string; apiKeyHash: string | null } | null> {
+  const apiUrl = process.env.WORKFLOW_API_URL || "http://localhost:4000";
+  const apiKey = process.env.WORKFLOW_API_KEY || "";
+  try {
+    const resp = await fetch(`${apiUrl}/gpu`, {
+      headers: { "x-workflow-api-key": apiKey },
+    });
+    if (!resp.ok) return null;
+    const listings = await resp.json() as Array<{ endpointUrl: string; apiKeyHash?: string; ratePerHour: number; status: string }>;
+    const active = listings.filter((l) => l.status === "ACTIVE");
+    if (active.length === 0) return null;
+    active.sort((a, b) => a.ratePerHour - b.ratePerHour);
+    return { endpointUrl: active[0].endpointUrl, apiKeyHash: active[0].apiKeyHash ?? null };
+  } catch {
+    return null;
+  }
 }
 
 export async function executeApexDispatch(
@@ -80,6 +100,7 @@ export async function executeApexDispatch(
   const preferSpeed = node.data?.preferSpeed === true || node.data?.preferSpeed === "true";
   const systemPrompt = node.data?.systemPrompt ? interpolate(String(node.data.systemPrompt), $input) : "";
   const maxTokens = parseInt(String(node.data?.maxTokens || "1024"), 10);
+  const gpuBurst = node.data?.gpuBurst === true || node.data?.gpuBurst === "true";
 
   const apexBaseUrl = process.env.APEX_BASE_URL?.replace(/\/$/, "");
   let chosenModel: string;
@@ -113,11 +134,29 @@ export async function executeApexDispatch(
     routedLocally = true;
   }
 
-  // Execute via OpenAI-compatible inference endpoint
-  const baseUrl = String(
-    node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434"
-  ).replace(/\/$/, "");
-  const apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+  // GPU burst: route image/video generation to the cheapest marketplace GPU listing
+  let gpuListingUrl: string | undefined;
+  let baseUrl: string;
+  let apiKey: string;
+
+  if (gpuBurst) {
+    const listing = await fetchCheapestGpuListing();
+    if (listing) {
+      // Use the marketplace listing endpoint; the real per-listing key is retrieved
+      // via APEX_GPU_API_KEY (placeholder until the key escrow system is built).
+      baseUrl = listing.endpointUrl.replace(/\/$/, "");
+      apiKey = process.env.APEX_GPU_API_KEY || "gpu-placeholder";
+      gpuListingUrl = listing.endpointUrl;
+    } else {
+      // No active GPU listing — fall back to the default provider silently
+      baseUrl = String(node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
+      apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+    }
+  } else {
+    // Standard path: use the configured OpenAI-compatible inference endpoint
+    baseUrl = String(node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
+    apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+  }
 
   const messages: Array<{ role: string; content: string }> = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
@@ -157,5 +196,6 @@ export async function executeApexDispatch(
     apexResponseParsed: parsed,
     apexRoutedLocally: routedLocally,
     apexUsage: (result as unknown as Record<string, unknown>).usage,
+    ...(gpuListingUrl !== undefined ? { _gpuListingUrl: gpuListingUrl } : {}),
   };
 }

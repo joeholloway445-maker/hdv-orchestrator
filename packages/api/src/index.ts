@@ -29,10 +29,11 @@ import { distributionRouter } from "./routes/distribution";
 import { newsRouter } from "./routes/news";
 import { dashboardRouter } from "./routes/dashboard";
 import { stripeWebhookRouter } from "./routes/stripeWebhook";
+import { adminRouter } from "./routes/admin";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
-import { globalLimiter, authLimiter, executionLimiter } from "./middleware/rateLimit";
+import { globalLimiter, authLimiter, executionLimiter, tenantLimiter } from "./middleware/rateLimit";
 
 const healthPrisma = new PrismaClient();
 
@@ -47,7 +48,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key"],
 }));
 
 // Request size limits
@@ -66,6 +67,10 @@ app.use("/workflows/:id/run", executionLimiter);
 
 // Apply Supabase/HOPE token auth as a pre-pass before standard verifyToken
 app.use(supabaseAuth);
+
+// Per-tenant rate limit (500 req/min) — applied after auth so tenant ID is resolved.
+// Requests with no tenant ID are skipped and fall through to the global IP limiter only.
+app.use(tenantLimiter);
 
 app.use("/auth", authRouter);
 app.use("/webhooks/list", verifyToken, webhooksRouter);
@@ -88,6 +93,9 @@ app.use("/gpu", gpuRouter);
 app.use("/tenants", tenantsRouter);
 // HOPE companion endpoints
 app.use("/hope", verifyToken, hopeRouter);
+
+// Admin endpoints — protected by ADMIN_SECRET_KEY header (no JWT required)
+app.use("/admin", adminRouter);
 
 // ---------------------------------------------------------------------------
 // Sea-Scyte domain routes

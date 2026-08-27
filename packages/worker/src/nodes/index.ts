@@ -37,6 +37,8 @@ import { executeKnoll } from "./knoll";
 import { executeDream } from "./dream";
 import { executeVision } from "./vision";
 import { executeHope } from "./hope";
+import { getAgent } from "../hdv/agents/registry.js";
+import { globalChain } from "../hdv/audit/hash_chain.js";
 
 interface NodeDef {
   id: string;
@@ -44,7 +46,47 @@ interface NodeDef {
   data: Record<string, unknown>;
 }
 
+/**
+ * Public executor — routes studio node types through the HDV agent registry,
+ * appends KNOLL verdicts to the tamper-evident audit chain, then falls back
+ * to the core switch for all other node types.
+ */
 export async function executeNode(
+  node: NodeDef,
+  $input: Record<string, unknown>,
+  prisma?: PrismaClient,
+  executionDepth = 0,
+): Promise<unknown> {
+  const nodeType = String(node.data?.nodeType || node.type || "");
+  const agent = getAgent(nodeType);
+
+  if (agent) {
+    const message = await agent.process({ ...$input, _nodeId: node.id, _nodeData: node.data });
+    const output: Record<string, unknown> = {
+      ...$input,
+      ...(message?.content && typeof message.content === "object" ? message.content as Record<string, unknown> : { agentText: message?.content }),
+      _agentId: message?.from,
+    };
+
+    // KNOLL: record verdict in the tamper-evident chain; block if denied
+    if (nodeType === "knoll") {
+      const verdict = String((output as Record<string, unknown>)._knollAudit
+        ? JSON.stringify((output as Record<string, unknown>)._knollAudit)
+        : "pass");
+      const tenantId = String(node.data?.tenantId ?? "");
+      globalChain.append(node.id, verdict, tenantId || undefined);
+      if ((output as Record<string, unknown>).denied) {
+        return { ...$input, _blocked: true, _blockReason: output.reason ?? "KNOLL denied" };
+      }
+    }
+
+    return output;
+  }
+
+  return executeNodeCore(node, $input, prisma, executionDepth);
+}
+
+async function executeNodeCore(
   node: NodeDef,
   $input: Record<string, unknown>,
   prisma?: PrismaClient,
