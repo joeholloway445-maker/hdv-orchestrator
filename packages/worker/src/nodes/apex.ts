@@ -8,8 +8,11 @@
  *
  * Uses any OpenAI-compatible inference endpoint (Ollama, vLLM, LM Studio, etc.)
  * configured via AI_BASE_URL + AI_MODEL env vars. No paid API required.
+ * BYOK tenants have their own endpoint routed here automatically.
  */
+import { PrismaClient } from "@prisma/client";
 import { interpolate as _interpolate } from "../lib/expr";
+import { tenantProviderConfig, type Tenant } from "../hdv/tenancy";
 
 interface NodeDef {
   data: Record<string, unknown>;
@@ -90,9 +93,62 @@ async function fetchCheapestGpuListing(): Promise<{ endpointUrl: string; apiKeyH
   }
 }
 
+/**
+ * Resolve the base endpoint + API key for APEX, honouring BYOK tenants.
+ * On the GPU-burst path this is bypassed in favour of the marketplace listing.
+ */
+async function resolveApexProviderConfig(
+  node: NodeDef,
+  $input: Record<string, unknown>,
+  prisma?: PrismaClient,
+): Promise<{ baseUrl: string; apiKey: string }> {
+  // Explicit node overrides take precedence
+  if (node.data?.baseUrl && node.data?.apiKey) {
+    return {
+      baseUrl: String(node.data.baseUrl).replace(/\/$/, ""),
+      apiKey: String(node.data.apiKey),
+    };
+  }
+
+  // BYOK tenant lookup
+  const tenantId =
+    String(node.data?.tenantId ?? "") ||
+    String(($input.$tenant as Record<string, unknown> | undefined)?.id ?? "");
+
+  if (tenantId && prisma) {
+    try {
+      // byokApiKey added in migration 20260827_byok_fields; cast until `prisma generate` reflects it
+      const user = await (prisma.user.findFirst as Function)({
+        where: { tenantId },
+        select: { plan: true, byokBaseUrl: true, byokApiKey: true, byokModel: true },
+      }) as { plan: string; byokBaseUrl: string | null; byokApiKey: string | null; byokModel: string | null } | null;
+      if (user) {
+        const tenant: Tenant = {
+          id: tenantId,
+          plan: user.plan as Tenant["plan"],
+          byokBaseUrl: user.byokBaseUrl ?? undefined,
+          byokApiKey: user.byokApiKey ?? undefined,
+          byokModel: user.byokModel ?? undefined,
+        };
+        const cfg = tenantProviderConfig(tenant);
+        return { baseUrl: cfg.baseUrl.replace(/\/$/, ""), apiKey: cfg.apiKey };
+      }
+    } catch (err) {
+      console.warn("[apex node] Tenant lookup failed, using platform defaults:", err);
+    }
+  }
+
+  // Platform defaults
+  return {
+    baseUrl: String(node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434").replace(/\/$/, ""),
+    apiKey: String(node.data?.apiKey || process.env.AI_API_KEY || "ollama"),
+  };
+}
+
 export async function executeApexDispatch(
   node: NodeDef,
   $input: Record<string, unknown>,
+  prisma?: PrismaClient,
 ): Promise<Record<string, unknown>> {
   const intent = node.data?.intent ? interpolate(String(node.data.intent), $input) : JSON.stringify($input);
   const category = String(node.data?.category || "general");
@@ -148,14 +204,16 @@ export async function executeApexDispatch(
       apiKey = process.env.APEX_GPU_API_KEY || "gpu-placeholder";
       gpuListingUrl = listing.endpointUrl;
     } else {
-      // No active GPU listing — fall back to the default provider silently
-      baseUrl = String(node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
-      apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+      // No active GPU listing — fall back to BYOK tenant config or platform defaults
+      const fallback = await resolveApexProviderConfig(node, $input, prisma);
+      baseUrl = fallback.baseUrl;
+      apiKey = fallback.apiKey;
     }
   } else {
-    // Standard path: use the configured OpenAI-compatible inference endpoint
-    baseUrl = String(node.data?.baseUrl || process.env.AI_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
-    apiKey = String(node.data?.apiKey || process.env.AI_API_KEY || "ollama");
+    // Standard path: honour BYOK tenant config; fall back to platform env vars
+    const provider = await resolveApexProviderConfig(node, $input, prisma);
+    baseUrl = provider.baseUrl;
+    apiKey = provider.apiKey;
   }
 
   const messages: Array<{ role: string; content: string }> = [];

@@ -127,7 +127,7 @@ async function executeNodeCore(
     case "memoryWrite":
       return executeMemoryWrite(node, $input, prisma!);
     case "ai":
-      return executeAI(node, $input);
+      return executeAI(node, $input, prisma);
     case "aggregate":
       return executeAggregate(node, $input);
     case "transform":
@@ -170,7 +170,7 @@ async function executeNodeCore(
       return $input; // pass-through annotation node
     // HDV Big Five agent nodes
     case "apex":
-      return executeApexDispatch(node, $input);
+      return executeApexDispatch(node, $input, prisma);
     case "knoll":
       return executeKnoll(node, $input);
     case "dream":
