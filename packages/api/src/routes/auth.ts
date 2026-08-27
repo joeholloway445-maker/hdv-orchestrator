@@ -38,8 +38,9 @@ router.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: "7d" });
-  res.json({ token, user: { id: user.id, email: user.email } });
+  const isAdmin = !!(process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+  const token = jwt.sign({ userId: user.id, isAdmin }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+  res.json({ token, user: { id: user.id, email: user.email, isAdmin } });
 });
 
 export { router as authRouter };

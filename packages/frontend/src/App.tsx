@@ -15,6 +15,7 @@ import { SchedulesPage } from "./pages/Schedules";
 import { GpuPage } from "./pages/Gpu";
 import { PlanPage } from "./pages/Plan";
 import { CompanionPage } from "./pages/Companion";
+import { AdminPage } from "./pages/Admin";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -22,6 +23,13 @@ import { PlanProvider } from "./context/plan";
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
   return token ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -158,6 +166,14 @@ export default function App() {
                 <PrivateRoute>
                   <CompanionPage />
                 </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminPage />
+                </AdminRoute>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />

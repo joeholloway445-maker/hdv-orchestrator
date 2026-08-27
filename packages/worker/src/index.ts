@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { executeWorkflow } from "./engine/dag";
 import { enqueueWorkflow } from "./queue";
 import { startScheduler } from "./scheduler";
+import { startScheduledRunner } from "./scheduledRunner";
 import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
 import { cleanupPayloads, payloadSummary } from "./lib/payload";
@@ -124,6 +125,7 @@ worker.on("failed", (job, err) => console.error(`[Worker] Job ${job?.id} failed:
 console.log("[Worker] Listening on workflow-execution queue...");
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
+startScheduledRunner();
 startTestServer(prisma);
 
 // ── Stall recovery ────────────────────────────────────────────────────────────

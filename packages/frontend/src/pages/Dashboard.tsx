@@ -232,6 +232,17 @@ export function DashboardPage() {
           >
             Companion
           </button>
+          {user?.isAdmin && (
+            <>
+              <span className="text-gray-600">|</span>
+              <button
+                onClick={() => navigate("/admin")}
+                className="text-sm text-red-400 hover:text-red-300 transition font-medium"
+              >
+                Admin
+              </button>
+            </>
+          )}
           <span className="text-gray-600">|</span>
           <PlanBadge />
           <span className="text-gray-400 text-sm">{user?.email}</span>
