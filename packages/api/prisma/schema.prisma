@@ -36,6 +36,7 @@ model User {
   credentials     Credential[]
   globalVariables GlobalVariable[]
   apiTokens       ApiToken[]
+  apiKeys         ApiKey[]
   gpuListings     GpuListing[]
   wallet          Wallet?
   membership      Membership?
@@ -284,6 +285,18 @@ model HopeCompanion {
 // ---------------------------------------------------------------------------
 // Workflow Templates — built-in templates tenants can browse and clone.
 // ---------------------------------------------------------------------------
+model ApiKey {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  keyHash   String    @unique
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  revoked   Boolean   @default(false)
+}
+
 model WorkflowTemplate {
   id          String   @id @default(cuid())
   name        String

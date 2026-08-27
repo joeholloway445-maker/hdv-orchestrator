@@ -36,9 +36,11 @@ import { dashboardRouter } from "./routes/dashboard";
 import { stripeWebhookRouter } from "./routes/stripeWebhook";
 import { adminRouter } from "./routes/admin";
 import knollRouter from "./routes/knoll";
+import { apiKeysRouter } from "./routes/apikeys";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
+import { apiKeyAuth } from "./middleware/apiKeyAuth";
 import { globalLimiter, authLimiter, executionLimiter, tenantLimiter } from "./middleware/rateLimit";
 
 const healthPrisma = new PrismaClient();
@@ -54,7 +56,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key", "x-api-key"],
 }));
 
 // Request size limits
@@ -70,6 +72,9 @@ app.use("/auth", authLimiter);
 // Execution trigger — apply a tight per-IP cap
 app.use("/workflows/:id/execute", executionLimiter);
 app.use("/workflows/:id/run", executionLimiter);
+
+// API key auth — checks x-api-key header before JWT auth
+app.use(apiKeyAuth);
 
 // Apply Supabase/HOPE token auth as a pre-pass before standard verifyToken
 app.use(supabaseAuth);
@@ -93,6 +98,7 @@ app.use("/memory", verifyToken, memoryRouter);
 app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
+app.use("/apikeys", verifyToken, apiKeysRouter);
 app.use("/templates", templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);

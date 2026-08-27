@@ -227,6 +227,12 @@ export function DashboardPage() {
             API Tokens
           </button>
           <button
+            onClick={() => navigate("/apikeys")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            API Keys
+          </button>
+          <button
             onClick={() => navigate("/gpu")}
             className="text-sm text-gray-400 hover:text-white transition"
           >
