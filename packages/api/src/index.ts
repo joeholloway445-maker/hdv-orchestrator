@@ -23,6 +23,7 @@ import { simulateRouter } from "./routes/simulate";
 import { schedulesRouter } from "./routes/schedules";
 import { planRouter } from "./routes/plan";
 import { gpuRouter } from "./routes/gpu";
+import queueRouter from "./routes/queue";
 // Sea-Scyte domain routes
 import { walletRouter } from "./routes/wallet";
 import { membershipRouter } from "./routes/membership";
@@ -106,6 +107,9 @@ app.use("/hope", verifyToken, hopeRouter);
 
 // Admin endpoints — protected by ADMIN_SECRET_KEY header (no JWT required)
 app.use("/admin", adminRouter);
+
+// Queue monitoring — admin-only (x-admin-key required inside the router)
+app.use("/queue", queueRouter);
 
 // ---------------------------------------------------------------------------
 // Sea-Scyte domain routes
