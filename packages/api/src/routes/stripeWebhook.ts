@@ -7,18 +7,15 @@
  *   - Handle subscription updates and cancellations
  *   - Reverse wallet credit on charge.refunded
  *
- * IMPORTANT — signature verification:
- *   This handler currently accepts the raw JSON body without verifying the
- *   Stripe-Signature header.  To enable proper verification in production:
- *   1. `npm install stripe --workspace=packages/api`
- *   2. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET env vars
- *   3. Replace the body parsing below with stripe.webhooks.constructEvent()
- *
- * Mount BEFORE express.json() or on a dedicated sub-app so the raw buffer is
- * available (see index.ts).
+ * Mount BEFORE express.json() so the raw buffer is available for signature
+ * verification.  express.raw() is applied inline on this route.
  */
 import { Router, Request, Response } from "express";
+import express from "express";
+import Stripe from "stripe";
 import { rawQuery } from "../lib/rawQuery";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
 
 export const stripeWebhookRouter = Router();
 
@@ -183,30 +180,29 @@ async function handleEvent(event: { type: string; data: { object: any } }): Prom
 /**
  * POST /stripe/webhook
  *
- * Mount this handler BEFORE the global express.json() middleware so the raw
- * body buffer is available for future Stripe signature verification.  A
- * dedicated express.json() is applied here for now.
+ * Uses express.raw() inline so the raw body buffer is available for Stripe
+ * signature verification.  Do NOT mount global express.json() before this
+ * route — the raw body must be preserved.
  */
 stripeWebhookRouter.post(
   "/",
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (req: any, _res: any, next: any) => {
-    // When express.raw() is applied upstream, body is already a Buffer.
-    // Fall through to the async handler regardless.
-    next();
-  },
+  express.raw({ type: "application/json" }),
   async (req: Request, res: Response): Promise<void> => {
-    // TODO: verify Stripe-Signature header once stripe package is installed.
-    // const sig = req.headers["stripe-signature"];
-    // event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let event: { type: string; data: { object: any } };
     try {
-      event = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as typeof event;
-      if (!event?.type) throw new Error("Missing event.type");
-    } catch {
-      res.status(400).json({ error: "Invalid event payload" });
+      if (!sig) throw new Error("Missing Stripe-Signature header");
+      event = stripe.webhooks.constructEvent(
+        req.body as Buffer,
+        sig,
+        webhookSecret,
+      ) as typeof event;
+    } catch (err) {
+      console.error("[stripe-webhook] Signature verification failed", err);
+      res.status(400).json({ error: "Webhook signature verification failed" });
       return;
     }
 
