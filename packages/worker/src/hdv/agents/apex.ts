@@ -35,6 +35,7 @@ export class ApexAgent extends BaseAgent {
     const intent = String(input.intent ?? input.scene ?? "");
     const category = String(input.category ?? "general");
     const budgetTier = (input.budgetTier ?? "medium") as BudgetTier;
+    const gpuBurst = input.gpuBurst === true || input.gpuBurst === "true";
     const moeModel = heuristicRoute(intent, category, budgetTier);
 
     const report = {
@@ -42,6 +43,10 @@ export class ApexAgent extends BaseAgent {
       moeModel,
       moeCategory: category,
       moeBudgetTier: budgetTier,
+      // When gpuBurst is set the node executor routes to the cheapest active
+      // marketplace GPU listing instead of the local Ollama endpoint.
+      gpuBurst,
+      routingDecision: gpuBurst ? "marketplace_gpu_burst" : "local_ollama",
       timestamp: Date.now(),
     };
 
