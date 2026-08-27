@@ -25,6 +25,7 @@ import {
 import { ExecutionPanel } from "../components/ExecutionPanel";
 import { DreamGenerator } from "../components/DreamGenerator";
 import { nodeTypes } from "../components/nodes/nodeTypes";
+import { useExecutionSocket } from "../hooks/useExecutionSocket";
 
 interface NodeData {
   label?: string;
@@ -140,10 +141,10 @@ export const NODE_TYPE_CONFIG = [
 function nodeStyle(status: NodeStatus | undefined): React.CSSProperties {
   if (!status) return {};
   const ring: Record<NodeStatus, string> = {
-    running: "0 0 0 3px #facc15",
-    success: "0 0 0 3px #4ade80",
-    error: "0 0 0 3px #f87171",
-    skipped: "0 0 0 3px #6b7280",
+    running: "0 0 0 3px #3b82f6",   // blue — execution in progress
+    success: "0 0 0 3px #4ade80",   // green
+    error:   "0 0 0 3px #f87171",   // red
+    skipped: "0 0 0 3px #6b7280",   // gray
   };
   return { boxShadow: ring[status] };
 }
@@ -181,6 +182,9 @@ export function EditorPage() {
     score: { score: number; grade: string; hasKnoll: boolean; hasApex: boolean; hasErrorHandling: boolean; hasOutputNode: boolean; recommendations: (string | null)[] };
     summary: { totalNodes: number; simulatedNodes: number; realNodes: number };
   } | null>(null);
+
+  // Real-time execution streaming via workflow-scoped Socket.io subscription
+  const wsNodeStatuses = useExecutionSocket(id ?? null, token);
 
   const socketRef = useRef<Socket | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -567,7 +571,8 @@ export function EditorPage() {
   })();
 
   const displayNodes = nodes.map((n) => {
-    const status = nodeStatuses[n.id];
+    // Merge: wsNodeStatuses provides real-time updates; nodeStatuses (telemetry/history) takes precedence
+    const status: NodeStatus | undefined = nodeStatuses[n.id] ?? wsNodeStatuses[n.id];
     const log = nodeLogs.find((l) => l.nodeId === n.id);
     const outputPreview = log?.output !== undefined
       ? JSON.stringify(log.output).slice(0, 60)

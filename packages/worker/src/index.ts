@@ -42,6 +42,12 @@ const worker = new Worker(
     try {
       const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
       if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
+      const tenantId = workflow.userId;
+      // Broadcast execution:start so the canvas can reset node statuses
+      await publisher.publish(
+        `hdv:exec:${workflowId}`,
+        JSON.stringify({ type: "execution:start", executionId, workflowId, tenantId })
+      );
 
       // Concurrency guard
       const maxConcurrency = (workflow as unknown as Record<string, unknown>).maxConcurrency as number | null;
@@ -92,10 +98,12 @@ const worker = new Worker(
         data: { status: "FAILED", finishedAt: new Date(), data: JSON.parse(JSON.stringify({ triggerData, error: msg })) },
       });
       await cleanupPayloads(executionId);
-      await publisher.publish(
-        "workflow:telemetry",
-        JSON.stringify({ type: "execution-failed", executionId, error: msg })
-      );
+      const failTenantId = (await prisma.workflow.findUnique({ where: { id: workflowId }, select: { userId: true } }).catch(() => null))?.userId;
+      const failPayload = JSON.stringify({ type: "execution-failed", executionId, workflowId, tenantId: failTenantId, error: msg });
+      await Promise.all([
+        publisher.publish("workflow:telemetry", failPayload),
+        publisher.publish(`hdv:exec:${workflowId}`, failPayload),
+      ]);
 
       // Trigger error workflow if configured
       const wf = await prisma.workflow.findUnique({ where: { id: workflowId } }).catch(() => null);
