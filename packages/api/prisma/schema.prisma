@@ -270,3 +270,13 @@ model NewsArticle {
   publishedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model HopeCompanion {
+  id              String    @id @default(cuid())
+  tenantId        String    @unique
+  mood            String    @default("idle")
+  executionStatus String    @default("idle")
+  lastActive      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

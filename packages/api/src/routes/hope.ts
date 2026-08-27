@@ -122,8 +122,14 @@ router.get("/companion", async (req: AuthRequest, res) => {
     });
   }
 
+  // Reshape into the CompanionData contract the frontend expects:
+  //   { workflow: { id, name, active }, latestExecution: { id, status, startedAt } | null }
+  const latestExec = companion.executions?.[0] ?? null;
   return res.json({
-    companion,
+    workflow: { id: companion.id, name: companion.name, active: companion.active },
+    latestExecution: latestExec
+      ? { id: latestExec.id, status: latestExec.status, startedAt: latestExec.startedAt }
+      : null,
     tenantId: user.tenantId,
   });
 });
