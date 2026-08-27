@@ -36,6 +36,10 @@ model User {
   globalVariables GlobalVariable[]
   apiTokens       ApiToken[]
   gpuListings     GpuListing[]
+  wallet          Wallet?
+  membership      Membership?
+  orders          Order[]
+  devices         Device[]
 }
 
 model Workflow {
@@ -174,4 +178,94 @@ enum NodeLogStatus {
   RUNNING
   SUCCESS
   ERROR
+}
+
+// ---------------------------------------------------------------------------
+// Sea-Scyte models: wallet, membership, catalog, shop, devices
+// ---------------------------------------------------------------------------
+
+model Wallet {
+  id           String        @id @default(uuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceUsd   Float         @default(0)
+  transactions WalletTx[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model WalletTx {
+  id          String   @id @default(uuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type        String   // "deposit" | "withdrawal" | "royalty" | "purchase"
+  amountUsd   Float
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Membership {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier      String    @default("free") // "free" | "basic" | "pro" | "vip"
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model ContentItem {
+  id           String      @id @default(uuid())
+  type         String      // "film" | "tv" | "music" | "merch"
+  title        String
+  description  String?
+  tags         String[]
+  licenseTerms Json?
+  priceUsd     Float       @default(0)
+  stock        Int?        // null = unlimited (digital)
+  metadata     Json?
+  orderItems   OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  items     OrderItem[]
+  totalUsd  Float
+  status    String      @default("pending") // "pending" | "paid" | "shipped" | "cancelled"
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model OrderItem {
+  id            String      @id @default(uuid())
+  orderId       String
+  order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  contentItemId String
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id])
+  quantity      Int         @default(1)
+  priceUsd      Float
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  token     String   @unique
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model NewsArticle {
+  id          String   @id @default(uuid())
+  title       String
+  slug        String   @unique
+  body        String
+  tags        String[]
+  publishedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

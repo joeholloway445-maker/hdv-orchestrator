@@ -1,8 +1,21 @@
-app = "vision-hdv-api"
+# Fly.io deployment configuration — hdv-orchestrator API
+# Deploy: fly deploy --config fly.toml
+# For the worker (no external port), use fly.worker.toml:
+#   fly deploy --config fly.worker.toml
+#
+# Required secrets (set with: fly secrets set KEY=value):
+#   DATABASE_URL, REDIS_URL, JWT_SECRET, ENCRYPTION_KEY
+#   AI_BASE_URL (e.g. http://<kvm4-ip>:11434 for Hostinger KVM4 Ollama)
+#   AI_API_KEY, AI_MODEL
+#   HDV_HOSTINGER_LLM_BASE_URL, HDV_HOSTINGER_LLM_API_KEY
+#   WORKFLOW_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY
+#   SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET
+
+app = "hdv-orchestrator"
 primary_region = "iad"
 
 [build]
-  dockerfile = "packages/api/Dockerfile"
+  dockerfile = "Dockerfile.api"
 
 [env]
   PORT = "4000"
@@ -23,4 +36,11 @@ primary_region = "iad"
   [[services.http_checks]]
     interval = "10s"
     timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
     path = "/health"
+
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

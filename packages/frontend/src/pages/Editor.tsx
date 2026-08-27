@@ -18,6 +18,10 @@ import api from "../api/client";
 import { useAuthStore } from "../store/auth";
 import { NodeSidebar } from "../components/NodeSidebar";
 import { NodeConfigPanel } from "../components/NodeConfigPanel";
+import {
+  StudioNodePanel,
+  isStudioNodeType,
+} from "../components/nodes/NodeConfigPanel";
 import { ExecutionPanel } from "../components/ExecutionPanel";
 import { DreamGenerator } from "../components/DreamGenerator";
 import { nodeTypes } from "../components/nodes/nodeTypes";
@@ -913,7 +917,14 @@ export function EditorPage() {
           </aside>
         )}
 
-        {selectedNode && (
+        {selectedNode && isStudioNodeType(selectedNode.type ?? "") ? (
+          <StudioNodePanel
+            nodeType={selectedNode.type ?? ""}
+            data={selectedNode.data as Record<string, unknown>}
+            onChange={(data) => updateNodeData(selectedNode.id, data)}
+            onClose={() => setSelectedNode(null)}
+          />
+        ) : selectedNode ? (
           <NodeConfigPanel
             node={selectedNode}
             onUpdate={(data) => updateNodeData(selectedNode.id, data)}
@@ -923,7 +934,7 @@ export function EditorPage() {
             webhookBaseUrl={import.meta.env.VITE_API_BASE_URL || "http://localhost:4000"}
             workflowId={id}
           />
-        )}
+        ) : null}
       </div>
 
       <ExecutionPanel

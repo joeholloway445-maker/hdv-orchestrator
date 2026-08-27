@@ -13,8 +13,14 @@ router.get("/", async (req: AuthRequest, res) => {
   const search = req.query.search as string | undefined;
   const tag = req.query.tag as string | undefined;
   const active = req.query.active as string | undefined;
+  const tenantId = req.query.tenantId as string | undefined;
 
-  const where: Record<string, unknown> = { userId: req.userId! };
+  // When ?tenantId is provided, filter across all users belonging to that tenant
+  // (identified by the canonical "tenant:{id}" tag); otherwise scope to this user.
+  const where: Record<string, unknown> = tenantId
+    ? { tags: { has: `tenant:${tenantId}` } }
+    : { userId: req.userId! };
+
   if (cursor) where.id = { lt: cursor };
   if (active === "true") where.active = true;
   if (active === "false") where.active = false;
@@ -22,7 +28,9 @@ router.get("/", async (req: AuthRequest, res) => {
     { name: { contains: search, mode: "insensitive" } },
     { description: { contains: search, mode: "insensitive" } },
   ];
-  if (tag) where.tags = { has: tag };
+  // Explicit tag filter stacks on top of (or replaces) the tenant tag filter
+  if (tag && !tenantId) where.tags = { has: tag };
+  if (tag && tenantId) where.tags = { hasEvery: [`tenant:${tenantId}`, tag] };
 
   const workflows = await (prisma as any).workflow.findMany({
     where,
@@ -42,7 +50,7 @@ router.get("/", async (req: AuthRequest, res) => {
 });
 
 router.post("/", async (req: AuthRequest, res) => {
-  const { name, nodes, edges } = req.body;
+  const { name, nodes, edges, tags: bodyTags } = req.body;
   if (name !== undefined && (typeof name !== "string" || name.trim().length === 0 || name.length > 200)) {
     return res.status(400).json({ error: "Invalid workflow data" });
   }
@@ -52,12 +60,20 @@ router.post("/", async (req: AuthRequest, res) => {
   if (edges !== undefined && !Array.isArray(edges)) {
     return res.status(400).json({ error: "Invalid workflow data" });
   }
-  const workflow = await prisma.workflow.create({
+
+  // Look up the user's tenantId so we can tag the workflow for tenant-scoped queries.
+  const user = await prisma.user.findUnique({ where: { id: req.userId! }, select: { tenantId: true } });
+  const baseTags: string[] = Array.isArray(bodyTags) ? bodyTags : [];
+  const tenantTag = user?.tenantId ? `tenant:${user.tenantId}` : null;
+  const tags = tenantTag && !baseTags.includes(tenantTag) ? [tenantTag, ...baseTags] : baseTags;
+
+  const workflow = await (prisma as any).workflow.create({
     data: {
       name: (typeof name === "string" && name.trim()) ? name.trim() : "Untitled Workflow",
       userId: req.userId!,
       nodes: nodes || [],
       edges: edges || [],
+      tags,
     },
   });
   res.status(201).json(workflow);

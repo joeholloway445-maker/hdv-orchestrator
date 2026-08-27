@@ -45,6 +45,29 @@ export function hasUsableByok(tenant: Tenant): boolean {
   return Boolean(tenant.plan === "BYOK" && tenant.byokBaseUrl && tenant.byokApiKey);
 }
 
+/**
+ * Resolve a Tenant from environment variables for single-tenant worker deployments.
+ * Reads TENANT_ID (required), TENANT_PLAN, BYOK_BASE_URL, BYOK_API_KEY, BYOK_MODEL,
+ * and PREFERRED_MODEL_ID from the process environment.
+ * Returns null when TENANT_ID is not set (multi-tenant / per-request routing).
+ */
+export function resolveTenantFromEnv(): Tenant | null {
+  const id = process.env.TENANT_ID;
+  if (!id) return null;
+
+  const rawPlan = (process.env.TENANT_PLAN ?? "FREE").toUpperCase();
+  const plan: Plan = (rawPlan in PLAN_POLICIES ? rawPlan : "FREE") as Plan;
+
+  return {
+    id,
+    plan,
+    byokBaseUrl: process.env.BYOK_BASE_URL,
+    byokApiKey: process.env.BYOK_API_KEY,
+    byokModel: process.env.BYOK_MODEL,
+    preferredModelId: process.env.PREFERRED_MODEL_ID,
+  };
+}
+
 /** Build provider options for a tenant — resolves to BYOK endpoint or platform env vars. */
 export function tenantProviderConfig(tenant: Tenant): { baseUrl: string; apiKey: string; model: string } {
   if (hasUsableByok(tenant)) {
