@@ -9,6 +9,7 @@
  */
 import { Router } from "express";
 import type { AuthRequest } from "../middleware/auth";
+import { requireStudio } from "../middleware/plan";
 
 const router = Router();
 
@@ -128,8 +129,8 @@ function scoreWorkflow(nodes: SimNode[], edges: SimEdge[]) {
   };
 }
 
-// POST /simulate — simulate a workflow dry-run
-router.post("/", async (req: AuthRequest, res) => {
+// POST /simulate — simulate a workflow dry-run (requires STARTER+ plan = DREAM studio)
+router.post("/", requireStudio("DREAM"), async (req: AuthRequest, res) => {
   try {
     const { nodes = [], edges = [], triggerData = {} } = req.body as {
       nodes?: SimNode[];
@@ -170,8 +171,8 @@ router.post("/score", async (req: AuthRequest, res) => {
   }
 });
 
-// POST /simulate/generate — generate workflow plan via DREAM/APEX
-router.post("/generate", async (req: AuthRequest, res) => {
+// POST /simulate/generate — generate workflow plan via DREAM/APEX (requires STARTER+)
+router.post("/generate", requireStudio("DREAM"), async (req: AuthRequest, res) => {
   try {
     const { intent } = req.body as { intent?: string };
     if (!intent || typeof intent !== "string" || intent.trim().length === 0) {

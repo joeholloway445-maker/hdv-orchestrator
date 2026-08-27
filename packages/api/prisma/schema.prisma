@@ -7,10 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Subscription tiers: HOPE is always free; upper studios are pay-gated.
+// BYOK lets power users bring their own OpenAI-compatible endpoint.
+// ---------------------------------------------------------------------------
+enum SubscriptionPlan {
+  FREE        // HOPE studio only
+  STARTER     // + DREAM (Hostinger / small models)
+  PRO         // + VISION (cloud models, higher param budget)
+  ENTERPRISE  // + KNOLL + APEX (full platform, no param cap)
+  BYOK        // tenant-supplied endpoint; no HDV platform bill
+}
+
 model User {
   id              String           @id @default(cuid())
   email           String           @unique
   passwordHash    String
+  plan            SubscriptionPlan @default(FREE)
+  tenantId        String?          @unique
+  byokBaseUrl     String?
+  byokModel       String?
+  maxActiveParams Int?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   workflows       Workflow[]
@@ -18,25 +35,26 @@ model User {
   credentials     Credential[]
   globalVariables GlobalVariable[]
   apiTokens       ApiToken[]
+  gpuListings     GpuListing[]
 }
 
 model Workflow {
-  id         String            @id @default(cuid())
-  userId     String
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name       String
-  active            Boolean           @default(false)
-  description       String?
-  tags              String[]          @default([])
-  errorWorkflowId   String?
-  timeoutMs         Int?
-  maxConcurrency    Int?
-  nodes             Json              @default("[]")
-  edges             Json              @default("[]")
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  executions Execution[]
-  versions   WorkflowVersion[]
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  active          Boolean           @default(false)
+  description     String?
+  tags            String[]          @default([])
+  errorWorkflowId String?
+  timeoutMs       Int?
+  maxConcurrency  Int?
+  nodes           Json              @default("[]")
+  edges           Json              @default("[]")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  executions      Execution[]
+  versions        WorkflowVersion[]
 }
 
 model Execution {
@@ -99,14 +117,14 @@ model WorkflowVersion {
 }
 
 model ApiToken {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  tokenHash   String    @unique
-  prefix      String
-  createdAt   DateTime  @default(now())
-  lastUsedAt  DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique
+  prefix     String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 }
 
 model GlobalVariable {
@@ -119,6 +137,30 @@ model GlobalVariable {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, key])
+}
+
+// ---------------------------------------------------------------------------
+// GPU marketplace — users list their hardware; platform routes burst GPU work.
+// ---------------------------------------------------------------------------
+enum GpuListingStatus {
+  ACTIVE
+  PAUSED
+  OFFLINE
+}
+
+model GpuListing {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String
+  gpuModel    String
+  vramGb      Int
+  ratePerHour Float
+  status      GpuListingStatus @default(ACTIVE)
+  endpointUrl String
+  apiKeyHash  String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 enum ExecutionStatus {
