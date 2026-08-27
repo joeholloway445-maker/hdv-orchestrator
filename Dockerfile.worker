@@ -1,0 +1,37 @@
+# Multi-stage build — hdv-orchestrator Worker
+# Build context: repo root (docker build -f Dockerfile.worker .)
+
+# ── Stage 1: Install dependencies (isolated-vm needs native build tools) ──────
+FROM node:20-alpine AS deps
+RUN apk add --no-cache python3 make g++
+WORKDIR /app
+
+COPY package*.json ./
+COPY packages/worker/package*.json packages/worker/
+# Prisma schema lives in the API package
+COPY packages/api/prisma/ packages/api/prisma/
+
+RUN npm ci --workspace=packages/worker --include-workspace-root
+
+# Generate Prisma client against the API's schema
+RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
+
+# ── Stage 2: Compile TypeScript ───────────────────────────────────────────────
+FROM deps AS build
+WORKDIR /app
+
+COPY packages/worker/src/ packages/worker/src/
+COPY packages/worker/tsconfig.json packages/worker/
+
+RUN npm run build --workspace=packages/worker
+
+# ── Stage 3: Production runtime ───────────────────────────────────────────────
+FROM node:20-alpine AS runner
+# isolated-vm native bindings require these at runtime
+RUN apk add --no-cache python3 make g++
+WORKDIR /app
+
+COPY --from=build /app/node_modules/ ./node_modules/
+COPY --from=build /app/packages/worker/dist/ ./dist/
+
+CMD ["node", "dist/index.js"]

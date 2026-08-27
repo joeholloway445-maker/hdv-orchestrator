@@ -1,0 +1,27 @@
+# Fly.io deployment configuration — hdv-orchestrator Worker
+# Deploy: fly deploy --config fly.worker.toml
+# Worker has no external port — it connects to the API via the private network.
+#
+# Required secrets (set with: fly secrets set KEY=value -a hdv-orchestrator-worker):
+#   DATABASE_URL, REDIS_URL, ENCRYPTION_KEY
+#   AI_BASE_URL, AI_API_KEY, AI_MODEL
+#   HDV_HOSTINGER_LLM_BASE_URL, HDV_HOSTINGER_LLM_API_KEY
+#   WORKFLOW_API_KEY, WORKFLOW_API_URL
+#   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET
+
+app = "hdv-orchestrator-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  NODE_ENV = "production"
+  WORKER_CONCURRENCY = "4"
+  # Point at the API app's private Fly network address
+  WORKFLOW_API_URL = "http://hdv-orchestrator.internal:4000"
+
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

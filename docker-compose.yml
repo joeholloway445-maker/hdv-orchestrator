@@ -1,5 +1,16 @@
 version: '3.9'
 
+# ── Hostinger KVM4 / Ollama VPS wiring ────────────────────────────────────────
+# For STARTER/PRO plans: point AI_BASE_URL at your Ollama VPS:
+#   AI_BASE_URL=http://<kvm4-ip>:11434
+# For the HDV-specific Hostinger LLM route, also set:
+#   HDV_HOSTINGER_LLM_BASE_URL=http://<kvm4-ip>:11434
+#   HDV_HOSTINGER_LLM_API_KEY=<optional — leave blank for Ollama>
+# On your KVM4 VPS, expose Ollama on all interfaces:
+#   OLLAMA_HOST=0.0.0.0 ollama serve
+# Open port 11434 in your Hostinger firewall / UFW rules.
+# ──────────────────────────────────────────────────────────────────────────────
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -46,6 +57,12 @@ services:
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Hostinger KVM4 Ollama VPS — see header comment above
+      AI_BASE_URL: ${AI_BASE_URL:-http://localhost:11434}
+      AI_API_KEY: ${AI_API_KEY:-ollama}
+      AI_MODEL: ${AI_MODEL:-llama3.2}
+      HDV_HOSTINGER_LLM_BASE_URL: ${HDV_HOSTINGER_LLM_BASE_URL:-}
+      HDV_HOSTINGER_LLM_API_KEY: ${HDV_HOSTINGER_LLM_API_KEY:-}
     ports:
       - "${API_PORT:-4000}:4000"
     depends_on:
@@ -72,6 +89,12 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       WORKFLOW_API_URL: http://api:4000
       WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-hdv-internal-key}
+      # Hostinger KVM4 Ollama VPS — see header comment above
+      AI_BASE_URL: ${AI_BASE_URL:-http://localhost:11434}
+      AI_API_KEY: ${AI_API_KEY:-ollama}
+      AI_MODEL: ${AI_MODEL:-llama3.2}
+      HDV_HOSTINGER_LLM_BASE_URL: ${HDV_HOSTINGER_LLM_BASE_URL:-}
+      HDV_HOSTINGER_LLM_API_KEY: ${HDV_HOSTINGER_LLM_API_KEY:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}

@@ -1,0 +1,70 @@
+# Railway deployment configuration — hdv-orchestrator
+# Three services: api, worker, frontend
+# Required secrets (set in Railway dashboard or railway.toml variables):
+#   DATABASE_URL      postgresql://...
+#   REDIS_URL         redis://...
+#   JWT_SECRET
+#   ENCRYPTION_KEY
+#   AI_BASE_URL       (e.g. http://<kvm4-ip>:11434 for Hostinger KVM4 Ollama)
+#   AI_API_KEY
+#   AI_MODEL
+#   HDV_HOSTINGER_LLM_BASE_URL
+#   HDV_HOSTINGER_LLM_API_KEY
+#   WORKFLOW_API_KEY
+#   SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_JWT_SECRET
+
+[build]
+builder = "nixpacks"
+
+# ── API ───────────────────────────────────────────────────────────────────────
+[[services]]
+name = "api"
+
+[services.build]
+buildCommand = "cd packages/api && npm run build"
+
+[services.deploy]
+startCommand = "node packages/api/dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+
+[services.variables]
+PORT = "4000"
+NODE_ENV = "production"
+
+[[services.ports]]
+port = 4000
+protocol = "http"
+
+# ── Worker ────────────────────────────────────────────────────────────────────
+[[services]]
+name = "worker"
+
+[services.build]
+buildCommand = "cd packages/worker && npm run build"
+
+[services.deploy]
+startCommand = "node packages/worker/dist/index.js"
+
+[services.variables]
+NODE_ENV = "production"
+# Worker calls the api service — Railway injects the private network URL
+WORKFLOW_API_URL = "${{api.RAILWAY_PRIVATE_URL}}"
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+[[services]]
+name = "frontend"
+
+[services.build]
+buildCommand = "cd packages/frontend && npm run build"
+
+[services.deploy]
+# Serve the Vite dist/ output with a static file server
+startCommand = "npx serve packages/frontend/dist -l 3000"
+
+[services.variables]
+NODE_ENV = "production"
+
+[[services.ports]]
+port = 3000
+protocol = "http"
