@@ -18,6 +18,7 @@ import { SubscriptionPage } from "./pages/Subscription";
 import { CompanionPage } from "./pages/Companion";
 import { AdminPage } from "./pages/Admin";
 import { ExecutionHistoryPage } from "./pages/ExecutionHistory";
+import { KnollAuditPage } from "./pages/KnollAudit";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -192,6 +193,14 @@ export default function App() {
                 <AdminRoute>
                   <AdminPage />
                 </AdminRoute>
+              }
+            />
+            <Route
+              path="/security"
+              element={
+                <PrivateRoute>
+                  <KnollAuditPage />
+                </PrivateRoute>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />

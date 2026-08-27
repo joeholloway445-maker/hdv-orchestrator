@@ -35,6 +35,7 @@ import { newsRouter } from "./routes/news";
 import { dashboardRouter } from "./routes/dashboard";
 import { stripeWebhookRouter } from "./routes/stripeWebhook";
 import { adminRouter } from "./routes/admin";
+import knollRouter from "./routes/knoll";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
@@ -107,6 +108,9 @@ app.use("/hope", verifyToken, hopeRouter);
 
 // Admin endpoints — protected by ADMIN_SECRET_KEY header (no JWT required)
 app.use("/admin", adminRouter);
+
+// KNOLL Studio audit endpoint (ENTERPRISE+ plan required)
+app.use("/knoll", knollRouter);
 
 // Queue monitoring — admin-only (x-admin-key required inside the router)
 app.use("/queue", queueRouter);

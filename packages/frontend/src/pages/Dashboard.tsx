@@ -238,6 +238,12 @@ export function DashboardPage() {
           >
             Companion
           </button>
+          <button
+            onClick={() => navigate("/security")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Security
+          </button>
           {user?.isAdmin && (
             <>
               <span className="text-gray-600">|</span>
