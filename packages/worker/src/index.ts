@@ -9,6 +9,7 @@ import { startScheduledRunner } from "./scheduledRunner";
 import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
 import { cleanupPayloads, payloadSummary } from "./lib/payload";
+import { startHealthServer } from "./health";
 
 const prisma = new PrismaClient();
 
@@ -123,6 +124,8 @@ worker.on("completed", (job) => console.log(`[Worker] Job ${job.id} completed`))
 worker.on("failed", (job, err) => console.error(`[Worker] Job ${job?.id} failed:`, err.message));
 
 console.log("[Worker] Listening on workflow-execution queue...");
+
+startHealthServer(Number(process.env.HEALTH_PORT) || 4001);
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
 startScheduledRunner();
