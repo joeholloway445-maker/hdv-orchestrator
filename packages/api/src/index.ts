@@ -5,8 +5,9 @@ import http from "http";
 import helmet from "helmet";
 import { Server as SocketIOServer } from "socket.io";
 import { PrismaClient } from "@prisma/client";
-import { authRouter } from "./routes/auth";
+import { authRouter, tenantsRouter } from "./routes/auth";
 import { workflowsRouter } from "./routes/workflows";
+import { hopeRouter } from "./routes/hope";
 import { executionsRouter } from "./routes/executions";
 import { webhooksRouter } from "./routes/webhooks";
 import { memoryRouter } from "./routes/memory";
@@ -73,6 +74,10 @@ app.use("/schedules", verifyToken, schedulesRouter);
 app.use("/plan", verifyToken, planRouter);
 // GPU marketplace (listing read is public; write routes check user inside handler)
 app.use("/gpu", gpuRouter);
+// Tenant provisioning
+app.use("/tenants", tenantsRouter);
+// HOPE companion endpoints
+app.use("/hope", verifyToken, hopeRouter);
 
 app.get("/health", async (_req, res) => {
   const checks: Record<string, string> = {};

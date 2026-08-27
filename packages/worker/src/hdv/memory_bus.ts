@@ -16,6 +16,8 @@ export interface MemoryRecord {
   timestamp: number;
   content: unknown;
   tags?: string[];
+  /** Optional tenant scope — set for multi-tenant worker deployments. */
+  tenantId?: string;
 }
 
 const ALLOWED: Record<AgentId, AgentId[]> = {
@@ -62,6 +64,15 @@ export class MemoryBus {
     if (reader === "KNOLL" || reader === "HOPE") return this.records.slice(-limit);
     if (reader === "VISION") return this.records.filter((r) => r.from === "DREAM" || r.from === "VISION").slice(-limit);
     return this.records.filter((r) => r.from === reader).slice(-limit);
+  }
+
+  /**
+   * Return a filtered view of this bus containing only records belonging to the
+   * given tenantId. Records with no tenantId are considered to belong to any tenant
+   * (legacy / pre-tenancy records).
+   */
+  forTenant(tenantId: string): MemoryRecord[] {
+    return this.records.filter((r) => !r.tenantId || r.tenantId === tenantId);
   }
 
   private persist(record: MemoryRecord) {
