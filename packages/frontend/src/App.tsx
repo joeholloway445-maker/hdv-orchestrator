@@ -20,6 +20,7 @@ import { AdminPage } from "./pages/Admin";
 import { ExecutionHistoryPage } from "./pages/ExecutionHistory";
 import { KnollAuditPage } from "./pages/KnollAudit";
 import { ApiKeysPage } from "./pages/ApiKeys";
+import { ProfilePage } from "./pages/Profile";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -209,6 +210,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <KnollAuditPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <PrivateRoute>
+                  <ProfilePage />
                 </PrivateRoute>
               }
             />

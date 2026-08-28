@@ -37,6 +37,7 @@ import { stripeWebhookRouter } from "./routes/stripeWebhook";
 import { adminRouter } from "./routes/admin";
 import knollRouter from "./routes/knoll";
 import { apiKeysRouter } from "./routes/apikeys";
+import { profileRouter } from "./routes/profile";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
@@ -99,6 +100,7 @@ app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
 app.use("/apikeys", verifyToken, apiKeysRouter);
+app.use("/profile", verifyToken, profileRouter);
 app.use("/templates", templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);

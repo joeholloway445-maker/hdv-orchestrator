@@ -20,17 +20,20 @@ enum SubscriptionPlan {
 }
 
 model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  passwordHash    String
-  plan            SubscriptionPlan @default(FREE)
-  tenantId        String?          @unique
-  byokBaseUrl     String?
-  byokApiKey      String?
-  byokModel       String?
-  maxActiveParams Int?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                 String           @id @default(cuid())
+  email              String           @unique
+  passwordHash       String
+  displayName        String?
+  timezone           String?
+  emailNotifications Boolean          @default(true)
+  plan               SubscriptionPlan @default(FREE)
+  tenantId           String?          @unique
+  byokBaseUrl        String?
+  byokApiKey         String?
+  byokModel          String?
+  maxActiveParams    Int?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   workflows       Workflow[]
   memories        UserMemory[]
   credentials     Credential[]
