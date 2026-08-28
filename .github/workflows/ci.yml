@@ -27,7 +27,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U hdv"
+          --health-cmd "pg_isready -U hdv -d hdv_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -50,14 +50,8 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install root deps
+      - name: Install all workspace deps
         run: npm ci
-
-      - name: Install package deps
-        run: |
-          npm ci --prefix packages/api
-          npm ci --prefix packages/worker
-          npm ci --prefix packages/frontend
 
       - name: Generate Prisma client
         working-directory: packages/api
