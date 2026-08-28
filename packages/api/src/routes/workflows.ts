@@ -8,12 +8,21 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req: AuthRequest, res) => {
-  const { limit } = parsePagination(req.query as Record<string, unknown>);
-  const cursor = req.query.cursor as string | undefined;
+  const q = req.query.q as string | undefined;
   const search = req.query.search as string | undefined;
+  const searchTerm = q ?? search;
   const tag = req.query.tag as string | undefined;
   const active = req.query.active as string | undefined;
   const tenantId = req.query.tenantId as string | undefined;
+
+  // Page-based pagination (preferred); fall back to cursor for backward compat
+  const pageRaw = req.query.page as string | undefined;
+  const limitRaw = req.query.limit as string | undefined;
+  const cursor = req.query.cursor as string | undefined;
+
+  const limit = Math.min(Number(limitRaw) || 20, 100);
+  const pageNum = Math.max(Number(pageRaw) || 1, 1);
+  const skip = cursor ? undefined : (pageNum - 1) * limit;
 
   // When ?tenantId is provided, filter across all users belonging to that tenant
   // (identified by the canonical "tenant:{id}" tag); otherwise scope to this user.
@@ -24,15 +33,15 @@ router.get("/", async (req: AuthRequest, res) => {
   if (cursor) where.id = { lt: cursor };
   if (active === "true") where.active = true;
   if (active === "false") where.active = false;
-  if (search) where.OR = [
-    { name: { contains: search, mode: "insensitive" } },
-    { description: { contains: search, mode: "insensitive" } },
+  if (searchTerm) where.OR = [
+    { name: { contains: searchTerm, mode: "insensitive" } },
+    { description: { contains: searchTerm, mode: "insensitive" } },
   ];
   // Explicit tag filter stacks on top of (or replaces) the tenant tag filter
   if (tag && !tenantId) where.tags = { has: tag };
   if (tag && tenantId) where.tags = { hasEvery: [`tenant:${tenantId}`, tag] };
 
-  const workflows = await (prisma as any).workflow.findMany({
+  const findArgs: Record<string, unknown> = {
     where,
     orderBy: { updatedAt: "desc" },
     take: limit,
@@ -44,9 +53,47 @@ router.get("/", async (req: AuthRequest, res) => {
         select: { status: true, startedAt: true },
       },
     },
-  });
+  };
+  if (skip !== undefined) findArgs.skip = skip;
+
+  const [workflows, total] = await Promise.all([
+    (prisma as any).workflow.findMany(findArgs),
+    (prisma as any).workflow.count({ where }),
+  ]);
+
+  // Return paginated response; include legacy nextCursor for backward compat
   const nextCursor = workflows.length === limit ? workflows[workflows.length - 1].id : null;
-  res.json({ items: workflows, nextCursor });
+  res.json({
+    workflows,
+    pagination: {
+      page: pageNum,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+    // Legacy fields kept for backward compatibility
+    items: workflows,
+    nextCursor,
+  });
+});
+
+// ── Import (must be before /:id to avoid route conflicts) ─────────────────────
+
+router.post("/import", async (req: AuthRequest, res) => {
+  const { name, nodes, edges } = req.body as { name: string; nodes: unknown; edges: unknown };
+  if (!name || !Array.isArray(nodes) || !Array.isArray(edges)) {
+    return res.status(400).json({ error: "invalid workflow JSON" });
+  }
+  const workflow = await prisma.workflow.create({
+    data: {
+      name: `${name} (imported)`,
+      userId: req.userId!,
+      nodes: nodes as object[],
+      edges: edges as object[],
+      active: false,
+    },
+  });
+  res.status(201).json(workflow);
 });
 
 router.post("/", async (req: AuthRequest, res) => {
@@ -260,6 +307,45 @@ router.post("/:id/test-node", async (req: AuthRequest, res) => {
   }
 });
 
+// ── Execution History ─────────────────────────────────────────────────────
+
+router.get("/:id/executions", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = req.query.cursor as string | undefined;
+
+  const executions = await prisma.execution.findMany({
+    where: {
+      workflowId: req.params.id,
+      ...(cursor ? { id: { lt: cursor } } : {}),
+    },
+    orderBy: { startedAt: "desc" },
+    take: limit,
+    select: { id: true, status: true, startedAt: true, finishedAt: true, data: true },
+  });
+
+  const nextCursor = executions.length === limit ? executions[executions.length - 1].id : null;
+  res.json({ items: executions, nextCursor });
+});
+
+router.get("/:id/executions/:execId", async (req: AuthRequest, res) => {
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: req.params.id, userId: req.userId! },
+  });
+  if (!workflow) return res.status(404).json({ error: "Not found" });
+
+  const exec = await prisma.execution.findFirst({
+    where: { id: req.params.execId, workflowId: req.params.id },
+    include: { nodeLogs: { orderBy: { startedAt: "asc" } } },
+  });
+  if (!exec) return res.status(404).json({ error: "not found" });
+  res.json(exec);
+});
+
 // ── Stats ──────────────────────────────────────────────────────────────────
 
 router.get("/:id/stats", async (req: AuthRequest, res) => {
@@ -321,7 +407,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   res.json(updated);
 });
 
-// ── Export / Import ────────────────────────────────────────────────────────────
+// ── Export ─────────────────────────────────────────────────────────────────────
 
 router.get("/:id/export", async (req: AuthRequest, res) => {
   const workflow = await prisma.workflow.findFirst({
@@ -329,38 +415,14 @@ router.get("/:id/export", async (req: AuthRequest, res) => {
   });
   if (!workflow) return res.status(404).json({ error: "Not found" });
 
-  const bundle = {
-    version: "1",
+  res.setHeader("Content-Disposition", `attachment; filename="${workflow.name.replace(/\s/g, "_")}.hdv.json"`);
+  res.json({
+    version: "1.0",
+    name: workflow.name,
+    nodes: workflow.nodes,
+    edges: workflow.edges,
     exportedAt: new Date().toISOString(),
-    workflow: {
-      name: workflow.name,
-      description: workflow.description,
-      tags: workflow.tags,
-      nodes: workflow.nodes,
-      edges: workflow.edges,
-    },
-  };
-
-  res.setHeader("Content-Disposition", `attachment; filename="${workflow.name.replace(/[^a-z0-9_-]/gi, "_")}.json"`);
-  res.json(bundle);
-});
-
-router.post("/import", async (req: AuthRequest, res) => {
-  const { bundle } = req.body as { bundle: { workflow: { name: string; description?: string; tags?: string[]; nodes: unknown; edges: unknown } } };
-  if (!bundle?.workflow?.nodes) return res.status(400).json({ error: "Invalid workflow bundle — missing nodes" });
-
-  const wf = bundle.workflow;
-  const workflow = await prisma.workflow.create({
-    data: {
-      name: (wf.name || "Imported Workflow") + " (Import)",
-      userId: req.userId!,
-      nodes: wf.nodes as object[],
-      edges: wf.edges as object[],
-      description: wf.description || null,
-      tags: Array.isArray(wf.tags) ? wf.tags : [],
-    },
   });
-  res.status(201).json(workflow);
 });
 
 export { router as workflowsRouter };

@@ -12,10 +12,14 @@ import { TokensPage } from "./pages/Tokens";
 import { WebhooksPage } from "./pages/Webhooks";
 import { TemplatesPage } from "./pages/Templates";
 import { SchedulesPage } from "./pages/Schedules";
-import { GpuPage } from "./pages/Gpu";
+import { GpuMarketplacePage } from "./pages/GpuMarketplace";
 import { PlanPage } from "./pages/Plan";
+import { SubscriptionPage } from "./pages/Subscription";
 import { CompanionPage } from "./pages/Companion";
 import { AdminPage } from "./pages/Admin";
+import { ExecutionHistoryPage } from "./pages/ExecutionHistory";
+import { KnollAuditPage } from "./pages/KnollAudit";
+import { ApiKeysPage } from "./pages/ApiKeys";
 import { useAuthStore } from "./store/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlanProvider } from "./context/plan";
@@ -97,6 +101,14 @@ export default function App() {
               }
             />
             <Route
+              path="/history"
+              element={
+                <PrivateRoute>
+                  <ExecutionHistoryPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/executions"
               element={
                 <PrivateRoute>
@@ -148,7 +160,7 @@ export default function App() {
               path="/gpu"
               element={
                 <PrivateRoute>
-                  <GpuPage />
+                  <GpuMarketplacePage />
                 </PrivateRoute>
               }
             />
@@ -157,6 +169,14 @@ export default function App() {
               element={
                 <PrivateRoute>
                   <PlanPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/subscription"
+              element={
+                <PrivateRoute>
+                  <SubscriptionPage />
                 </PrivateRoute>
               }
             />
@@ -174,6 +194,22 @@ export default function App() {
                 <AdminRoute>
                   <AdminPage />
                 </AdminRoute>
+              }
+            />
+            <Route
+              path="/apikeys"
+              element={
+                <PrivateRoute>
+                  <ApiKeysPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/security"
+              element={
+                <PrivateRoute>
+                  <KnollAuditPage />
+                </PrivateRoute>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,0 +1,1038 @@
+openapi: "3.0.3"
+info:
+  title: HDV Orchestrator API
+  version: "1.0.0"
+  description: |
+    The Periliminal Space automation platform — n8n-style DAG workflows
+    with the Big Five AI agents (HOPE, VISION, DREAM, KNOLL, APEX).
+servers:
+  - url: http://localhost:4000
+    description: Local development
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    adminKey:
+      type: apiKey
+      in: header
+      name: x-admin-key
+  schemas:
+    Workflow:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        active: { type: boolean }
+        nodes: { type: array, items: { type: object } }
+        edges: { type: array, items: { type: object } }
+        tenantId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Schedule:
+      type: object
+      properties:
+        id: { type: string }
+        workflowId: { type: string }
+        cron: { type: string }
+        timezone: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    Execution:
+      type: object
+      properties:
+        id: { type: string }
+        workflowId: { type: string }
+        status:
+          type: string
+          enum: [pending, running, success, error]
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        output: { type: object }
+    GpuNode:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        status:
+          type: string
+          enum: [available, busy, offline]
+        vram: { type: integer }
+        pricePerHour: { type: number }
+        ownerId: { type: string }
+    WalletBalance:
+      type: object
+      properties:
+        balance: { type: number }
+        currency: { type: string }
+    Transaction:
+      type: object
+      properties:
+        id: { type: string }
+        amount: { type: number }
+        type:
+          type: string
+          enum: [deposit, charge, refund]
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+    Membership:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, starter, pro, enterprise]
+        status:
+          type: string
+          enum: [active, canceled, past_due]
+        renewsAt: { type: string, format: date-time }
+    Film:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        thumbnailUrl: { type: string }
+        releaseYear: { type: integer }
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        price: { type: number }
+        description: { type: string }
+        inStock: { type: boolean }
+    NewsArticle:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        content: { type: string }
+        publishedAt: { type: string, format: date-time }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+paths:
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                name: { type: string }
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { type: object }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and receive a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { type: object }
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /auth/byok:
+    patch:
+      tags: [Auth]
+      summary: Update Bring-Your-Own-Key (AI provider keys)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                openaiKey: { type: string }
+                anthropicKey: { type: string }
+                geminiKey: { type: string }
+      responses:
+        "200":
+          description: Keys updated
+        "401":
+          description: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Workflows
+  # ---------------------------------------------------------------------------
+  /workflows:
+    get:
+      tags: [Workflows]
+      summary: List all workflows for the authenticated tenant
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: active
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Workflow" }
+                  total: { type: integer }
+    post:
+      tags: [Workflows]
+      summary: Create a new workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                active: { type: boolean, default: false }
+                nodes: { type: array, items: { type: object } }
+                edges: { type: array, items: { type: object } }
+      responses:
+        "201":
+          description: Workflow created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workflow" }
+  /workflows/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Workflows]
+      summary: Get a single workflow by ID
+      responses:
+        "200":
+          description: Workflow
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workflow" }
+        "404":
+          description: Not found
+    patch:
+      tags: [Workflows]
+      summary: Update a workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                active: { type: boolean }
+                nodes: { type: array, items: { type: object } }
+                edges: { type: array, items: { type: object } }
+      responses:
+        "200":
+          description: Updated workflow
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workflow" }
+    delete:
+      tags: [Workflows]
+      summary: Delete a workflow
+      responses:
+        "204":
+          description: Deleted
+  /workflows/{id}/run:
+    post:
+      tags: [Workflows]
+      summary: Trigger a workflow run
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload: { type: object }
+      responses:
+        "202":
+          description: Execution started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Execution" }
+
+  # ---------------------------------------------------------------------------
+  # Schedules
+  # ---------------------------------------------------------------------------
+  /schedules:
+    get:
+      tags: [Schedules]
+      summary: List schedules
+      responses:
+        "200":
+          description: List of schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Schedule" }
+    post:
+      tags: [Schedules]
+      summary: Create a schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflowId, cron]
+              properties:
+                workflowId: { type: string }
+                cron: { type: string, example: "0 * * * *" }
+                timezone: { type: string, default: "UTC" }
+                active: { type: boolean, default: true }
+      responses:
+        "201":
+          description: Schedule created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Schedule" }
+  /schedules/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Schedules]
+      summary: Get a schedule
+      responses:
+        "200":
+          description: Schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Schedule" }
+    patch:
+      tags: [Schedules]
+      summary: Update a schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cron: { type: string }
+                timezone: { type: string }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: Updated schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Schedule" }
+    delete:
+      tags: [Schedules]
+      summary: Delete a schedule
+      responses:
+        "204":
+          description: Deleted
+
+  # ---------------------------------------------------------------------------
+  # HOPE Companion
+  # ---------------------------------------------------------------------------
+  /hope/companion:
+    get:
+      tags: [HOPE]
+      summary: Retrieve HOPE companion state / history
+      responses:
+        "200":
+          description: Companion state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages: { type: array, items: { type: object } }
+                  sessionId: { type: string }
+    post:
+      tags: [HOPE]
+      summary: Send a message to the HOPE companion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+                sessionId: { type: string }
+      responses:
+        "200":
+          description: Companion reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply: { type: string }
+                  sessionId: { type: string }
+
+  # ---------------------------------------------------------------------------
+  # Simulate (DREAM agent)
+  # ---------------------------------------------------------------------------
+  /simulate:
+    post:
+      tags: [Simulate]
+      summary: Run a DREAM agent simulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
+                model: { type: string }
+                parameters: { type: object }
+      responses:
+        "200":
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  output: { type: string }
+                  tokens: { type: integer }
+
+  # ---------------------------------------------------------------------------
+  # Memory
+  # ---------------------------------------------------------------------------
+  /memory:
+    get:
+      tags: [Memory]
+      summary: Retrieve agent memory entries
+      parameters:
+        - in: query
+          name: agent
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Memory entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        agent: { type: string }
+                        content: { type: string }
+                        createdAt: { type: string, format: date-time }
+
+  # ---------------------------------------------------------------------------
+  # GPU Marketplace
+  # ---------------------------------------------------------------------------
+  /gpu:
+    get:
+      tags: [GPU]
+      summary: List available GPU nodes
+      security: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, busy, offline]
+        - in: query
+          name: minVram
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of GPU nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GpuNode" }
+    post:
+      tags: [GPU]
+      summary: Register a GPU node for rent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, vram, pricePerHour]
+              properties:
+                label: { type: string }
+                vram: { type: integer }
+                pricePerHour: { type: number }
+      responses:
+        "201":
+          description: GPU node registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GpuNode" }
+  /gpu/{id}/status:
+    patch:
+      tags: [GPU]
+      summary: Update GPU node status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [available, busy, offline]
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GpuNode" }
+
+  # ---------------------------------------------------------------------------
+  # Wallet
+  # ---------------------------------------------------------------------------
+  /wallet/balance:
+    get:
+      tags: [Wallet]
+      summary: Get wallet balance
+      responses:
+        "200":
+          description: Balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletBalance" }
+  /wallet/transactions:
+    get:
+      tags: [Wallet]
+      summary: List wallet transactions
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Transaction" }
+                  total: { type: integer }
+  /wallet/deposit:
+    post:
+      tags: [Wallet]
+      summary: Deposit funds into wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, minimum: 1 }
+                currency: { type: string, default: "USD" }
+      responses:
+        "200":
+          description: Deposit initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkoutUrl: { type: string }
+                  transactionId: { type: string }
+
+  # ---------------------------------------------------------------------------
+  # Membership
+  # ---------------------------------------------------------------------------
+  /membership:
+    get:
+      tags: [Membership]
+      summary: Get current membership status
+      responses:
+        "200":
+          description: Membership
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Membership" }
+  /membership/subscribe:
+    post:
+      tags: [Membership]
+      summary: Subscribe to a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan]
+              properties:
+                plan:
+                  type: string
+                  enum: [starter, pro, enterprise]
+      responses:
+        "200":
+          description: Subscription started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkoutUrl: { type: string }
+  /membership/cancel:
+    delete:
+      tags: [Membership]
+      summary: Cancel current subscription
+      responses:
+        "200":
+          description: Subscription canceled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Membership" }
+
+  # ---------------------------------------------------------------------------
+  # Catalog
+  # ---------------------------------------------------------------------------
+  /catalog/films:
+    get:
+      tags: [Catalog]
+      summary: List films
+      security: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Films
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Film" }
+                  total: { type: integer }
+  /catalog/films/{id}:
+    get:
+      tags: [Catalog]
+      summary: Get film by ID
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Film
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Film" }
+        "404":
+          description: Not found
+  /catalog/music:
+    get:
+      tags: [Catalog]
+      summary: List music catalog
+      security: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Music tracks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        artist: { type: string }
+                        duration: { type: integer }
+
+  # ---------------------------------------------------------------------------
+  # Shop
+  # ---------------------------------------------------------------------------
+  /shop/products:
+    get:
+      tags: [Shop]
+      summary: List shop products
+      security: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Product" }
+  /shop/cart:
+    post:
+      tags: [Shop]
+      summary: Add items to cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, quantity]
+              properties:
+                productId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Cart updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cart: { type: array, items: { type: object } }
+                  total: { type: number }
+  /shop/checkout:
+    post:
+      tags: [Shop]
+      summary: Initiate checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productId: { type: string }
+                      quantity: { type: integer }
+      responses:
+        "200":
+          description: Checkout session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkoutUrl: { type: string }
+                  orderId: { type: string }
+
+  # ---------------------------------------------------------------------------
+  # News
+  # ---------------------------------------------------------------------------
+  /news:
+    get:
+      tags: [News]
+      summary: List news articles
+      security: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NewsArticle" }
+  /news/{slug}:
+    get:
+      tags: [News]
+      summary: Get news article by slug
+      security: []
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Article
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NewsArticle" }
+        "404":
+          description: Not found
+
+  # ---------------------------------------------------------------------------
+  # Dashboard
+  # ---------------------------------------------------------------------------
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflowsTotal: { type: integer }
+                  executionsToday: { type: integer }
+                  activeSchedules: { type: integer }
+                  walletBalance: { type: number }
+                  gpuUsage: { type: number }
+
+  # ---------------------------------------------------------------------------
+  # Admin
+  # ---------------------------------------------------------------------------
+  /admin/tenants:
+    get:
+      tags: [Admin]
+      summary: List all tenants
+      security:
+        - adminKey: []
+      responses:
+        "200":
+          description: Tenants list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    plan: { type: string }
+                    createdAt: { type: string, format: date-time }
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Get audit log
+      security:
+        - adminKey: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+        - in: query
+          name: userId
+          schema: { type: string }
+      responses:
+        "200":
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    action: { type: string }
+                    userId: { type: string }
+                    createdAt: { type: string, format: date-time }
+  /admin/gpu:
+    get:
+      tags: [Admin]
+      summary: List all GPU nodes (admin view)
+      security:
+        - adminKey: []
+      responses:
+        "200":
+          description: All GPU nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GpuNode" }
+  /admin/plan/{userId}:
+    patch:
+      tags: [Admin]
+      summary: Override a user's plan
+      security:
+        - adminKey: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan]
+              properties:
+                plan:
+                  type: string
+                  enum: [free, starter, pro, enterprise]
+      responses:
+        "200":
+          description: Plan updated
+  /admin/gpu/{id}/status:
+    patch:
+      tags: [Admin]
+      summary: Force-update a GPU node status
+      security:
+        - adminKey: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [available, busy, offline]
+      responses:
+        "200":
+          description: Status updated
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: All systems operational
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "ok" }
+                  checks: { type: object }
+                  uptime: { type: number }
+        "503":
+          description: Degraded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "degraded" }
+                  checks: { type: object }
+                  uptime: { type: number }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { useAuthStore } from "../store/auth";
 import { PlanBadge } from "../components/PlanBadge";
 import { StudioGate } from "../components/StudioGate";
 import { StatusChip } from "../components/StatusChip";
@@ -83,6 +84,7 @@ function GradeChip({ grade }: { grade?: string }) {
 
 export function CompanionPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [companion, setCompanion] = useState<CompanionData | null>(null);
   const [activating, setActivating] = useState(false);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -135,9 +137,13 @@ export function CompanionPage() {
   useEffect(() => {
     fetchCompanion();
     api
-      .get<Workflow[] | { items?: Workflow[] }>("/workflows")
+      .get<Workflow[] | { workflows?: Workflow[]; items?: Workflow[] }>("/workflows?limit=100")
       .then(({ data }) => {
-        setWorkflows(Array.isArray(data) ? data : (data.items ?? []));
+        if (Array.isArray(data)) {
+          setWorkflows(data);
+        } else {
+          setWorkflows(data.workflows ?? data.items ?? []);
+        }
       })
       .catch(() => {});
   }, []);
@@ -191,6 +197,14 @@ export function CompanionPage() {
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">
               ○ Inactive
             </span>
+          )}
+          {user?.isAdmin && (
+            <button
+              onClick={() => navigate("/admin")}
+              className="text-xs text-red-400 hover:text-red-300 transition font-medium"
+            >
+              Admin →
+            </button>
           )}
           <PlanBadge />
         </div>

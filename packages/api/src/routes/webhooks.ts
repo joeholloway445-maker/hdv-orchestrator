@@ -113,6 +113,77 @@ async function handleWebhook(req: import("express").Request, res: import("expres
   res.status(202).json({ executionId: execution.id, message: "Workflow triggered" });
 }
 
+// ---------------------------------------------------------------------------
+// WebhookEndpoint CRUD — outbound webhook notification endpoints
+// All routes below require the user to be authenticated (req.userId set by
+// supabaseAuth / verifyToken middleware mounted in index.ts).
+// ---------------------------------------------------------------------------
+
+function isValidHttpsUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// GET /webhooks/endpoints — list user's outbound webhook endpoints
+router.get("/endpoints", async (req: AuthRequest, res) => {
+  if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
+  const endpoints = await prisma.webhookEndpoint.findMany({ where: { userId: req.userId } });
+  res.json(endpoints);
+});
+
+// POST /webhooks/endpoints — create a new outbound webhook endpoint
+router.post("/endpoints", async (req: AuthRequest, res) => {
+  if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
+  const { url, secret, events } = req.body as { url?: string; secret?: string; events?: string[] };
+  if (!url || !secret) return res.status(400).json({ error: "url and secret are required" });
+  if (!isValidHttpsUrl(url)) return res.status(400).json({ error: "url must be a valid https:// URL" });
+  const endpoint = await prisma.webhookEndpoint.create({
+    data: {
+      userId: req.userId,
+      url,
+      secret,
+      ...(events ? { events } : {}),
+    },
+  });
+  res.status(201).json(endpoint);
+});
+
+// PATCH /webhooks/endpoints/:id — update active/url/secret/events
+router.patch("/endpoints/:id", async (req: AuthRequest, res) => {
+  if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
+  const existing = await prisma.webhookEndpoint.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: "Not found" });
+  const { url, secret, events, active } = req.body as { url?: string; secret?: string; events?: string[]; active?: boolean };
+  if (url !== undefined && !isValidHttpsUrl(url)) return res.status(400).json({ error: "url must be a valid https:// URL" });
+  const updated = await prisma.webhookEndpoint.update({
+    where: { id: req.params.id },
+    data: {
+      ...(url !== undefined ? { url } : {}),
+      ...(secret !== undefined ? { secret } : {}),
+      ...(events !== undefined ? { events } : {}),
+      ...(active !== undefined ? { active } : {}),
+    },
+  });
+  res.json(updated);
+});
+
+// DELETE /webhooks/endpoints/:id — delete an outbound webhook endpoint
+router.delete("/endpoints/:id", async (req: AuthRequest, res) => {
+  if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
+  const existing = await prisma.webhookEndpoint.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: "Not found" });
+  await prisma.webhookEndpoint.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// Inbound webhook trigger list (legacy)
+// ---------------------------------------------------------------------------
+
 // GET /webhooks/list — authenticated: list all webhook triggers for current user
 router.get("/list", async (req: AuthRequest, res) => {
   const workflows = await prisma.workflow.findMany({ where: { userId: req.userId! } });

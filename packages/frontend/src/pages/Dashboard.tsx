@@ -33,12 +33,22 @@ interface DashboardStats {
   recentExecutions: RecentExecution[];
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
 export function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
-  const [activeFilter, setActiveFilter] = useState("");
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
   const [showDreamGenerator, setShowDreamGenerator] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,29 +103,45 @@ export function DashboardPage() {
     }
   }
 
-  function fetchWorkflows(s: string, tag: string, active: string) {
+  // Debounce search input
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // reset to page 1 on new search
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [tagFilter, activeOnly]);
+
+  function fetchWorkflows(q: string, tag: string, active: boolean, currentPage: number) {
     setLoading(true);
     const params = new URLSearchParams();
-    if (s) params.set("search", s);
+    if (q) params.set("q", q);
     if (tag) params.set("tag", tag);
-    if (active) params.set("active", active);
+    if (active) params.set("active", "true");
+    params.set("page", String(currentPage));
+    params.set("limit", "20");
     api.get(`/workflows?${params.toString()}`).then(({ data }) => {
-      const list = Array.isArray(data) ? data : ((data as { items?: Workflow[] }).items ?? []);
+      const payload = data as { workflows?: Workflow[]; items?: Workflow[]; pagination?: Pagination };
+      const list = payload.workflows ?? payload.items ?? (Array.isArray(data) ? data : []);
       setWorkflows(list as Workflow[]);
+      if (payload.pagination) setPagination(payload.pagination);
       setLoading(false);
     });
   }
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchWorkflows(search, tagFilter, activeFilter), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search, tagFilter, activeFilter]);
+    fetchWorkflows(debouncedSearch, tagFilter, activeOnly, page);
+  }, [debouncedSearch, tagFilter, activeOnly, page]);
 
-  // Update totalWorkflows when workflows list changes
+  // Update totalWorkflows from pagination total
   useEffect(() => {
-    setStats((prev) => prev ? { ...prev, totalWorkflows: workflows.length } : prev);
-  }, [workflows.length]);
+    const total = pagination ? pagination.total : workflows.length;
+    setStats((prev) => prev ? { ...prev, totalWorkflows: total } : prev);
+  }, [pagination, workflows.length]);
 
   // Fetch stats once on mount
   useEffect(() => { fetchStats(); }, []);
@@ -197,6 +223,12 @@ export function DashboardPage() {
             Executions
           </button>
           <button
+            onClick={() => navigate("/history")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            History
+          </button>
+          <button
             onClick={() => navigate("/credentials")}
             className="text-sm text-gray-400 hover:text-white transition"
           >
@@ -221,6 +253,12 @@ export function DashboardPage() {
             API Tokens
           </button>
           <button
+            onClick={() => navigate("/apikeys")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            API Keys
+          </button>
+          <button
             onClick={() => navigate("/gpu")}
             className="text-sm text-gray-400 hover:text-white transition"
           >
@@ -231,6 +269,12 @@ export function DashboardPage() {
             className="text-sm text-gray-400 hover:text-white transition"
           >
             Companion
+          </button>
+          <button
+            onClick={() => navigate("/security")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Security
           </button>
           {user?.isAdmin && (
             <>
@@ -251,6 +295,12 @@ export function DashboardPage() {
             className="text-sm text-gray-400 hover:text-white transition"
           >
             Plan
+          </button>
+          <button
+            onClick={() => navigate("/subscription")}
+            className="text-sm text-gray-400 hover:text-white transition"
+          >
+            Subscription
           </button>
           <button
             onClick={logout}
@@ -312,7 +362,14 @@ export function DashboardPage() {
         )}
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold">My Workflows</h2>
+          <h2 className="text-2xl font-semibold">
+            My Workflows
+            {pagination && (
+              <span className="ml-3 text-base font-normal text-gray-400">
+                {pagination.total} workflow{pagination.total !== 1 ? "s" : ""}
+              </span>
+            )}
+          </h2>
           <div className="flex gap-2">
             <button
               onClick={() => navigate("/templates")}
@@ -341,10 +398,10 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <input
             type="text"
-            className="flex-1 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            className="flex-1 min-w-48 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
             placeholder="Search workflows..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -356,25 +413,25 @@ export function DashboardPage() {
             value={tagFilter}
             onChange={(e) => setTagFilter(e.target.value)}
           />
-          <select
-            className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 text-sm"
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
+          <button
+            onClick={() => setActiveOnly((v) => !v)}
+            className={`px-4 py-2 rounded-lg border text-sm font-medium transition ${
+              activeOnly
+                ? "bg-green-900/40 border-green-700 text-green-300 hover:bg-green-900/60"
+                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500"
+            }`}
           >
-            <option value="">All statuses</option>
-            <option value="true">Active only</option>
-            <option value="false">Inactive only</option>
-          </select>
+            {activeOnly ? "● Active Only" : "○ Active Only"}
+          </button>
         </div>
 
         {loading ? (
           <div className="text-gray-500">Loading...</div>
         ) : (() => {
-          const filtered = workflows;
-          return filtered.length === 0 ? (
+          return workflows.length === 0 ? (
             <div className="text-center py-24 text-gray-500">
-              {search || tagFilter || activeFilter ? (
-                <p className="text-lg">No workflows match your filters</p>
+              {search || tagFilter || activeOnly ? (
+                <p className="text-lg">No workflows found</p>
               ) : (
                 <>
                   <p className="text-lg mb-3">No workflows yet</p>
@@ -386,7 +443,7 @@ export function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-3">
-              {filtered.map((wf) => (
+              {workflows.map((wf) => (
               <div
                 key={wf.id}
                 className="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-gray-600 transition"
@@ -473,6 +530,31 @@ export function DashboardPage() {
             </div>
           );
         })()}
+
+        {/* Pagination controls */}
+        {pagination && pagination.total > 20 && (
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-700">
+            <span className="text-sm text-gray-500">
+              Page {pagination.page} of {pagination.pages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={pagination.page <= 1}
+                className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                ← Previous
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+                disabled={pagination.page >= pagination.pages}
+                className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

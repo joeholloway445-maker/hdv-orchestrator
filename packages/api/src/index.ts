@@ -1,5 +1,9 @@
 import "dotenv/config";
 import express from "express";
+import swaggerUi from "swagger-ui-express";
+import { readFileSync } from "fs";
+import { load } from "js-yaml";
+import { join } from "path";
 import cors from "cors";
 import http from "http";
 import helmet from "helmet";
@@ -19,6 +23,7 @@ import { simulateRouter } from "./routes/simulate";
 import { schedulesRouter } from "./routes/schedules";
 import { planRouter } from "./routes/plan";
 import { gpuRouter } from "./routes/gpu";
+import queueRouter from "./routes/queue";
 // Sea-Scyte domain routes
 import { walletRouter } from "./routes/wallet";
 import { membershipRouter } from "./routes/membership";
@@ -30,9 +35,12 @@ import { newsRouter } from "./routes/news";
 import { dashboardRouter } from "./routes/dashboard";
 import { stripeWebhookRouter } from "./routes/stripeWebhook";
 import { adminRouter } from "./routes/admin";
+import knollRouter from "./routes/knoll";
+import { apiKeysRouter } from "./routes/apikeys";
 import { setupSocketIO } from "./socket";
 import { verifyToken } from "./middleware/auth";
 import { supabaseAuth } from "./middleware/supabase";
+import { apiKeyAuth } from "./middleware/apiKeyAuth";
 import { globalLimiter, authLimiter, executionLimiter, tenantLimiter } from "./middleware/rateLimit";
 
 const healthPrisma = new PrismaClient();
@@ -48,7 +56,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-key", "x-api-key"],
 }));
 
 // Request size limits
@@ -65,12 +73,21 @@ app.use("/auth", authLimiter);
 app.use("/workflows/:id/execute", executionLimiter);
 app.use("/workflows/:id/run", executionLimiter);
 
+// API key auth — checks x-api-key header before JWT auth
+app.use(apiKeyAuth);
+
 // Apply Supabase/HOPE token auth as a pre-pass before standard verifyToken
 app.use(supabaseAuth);
 
 // Per-tenant rate limit (500 req/min) — applied after auth so tenant ID is resolved.
 // Requests with no tenant ID are skipped and fall through to the global IP limiter only.
 app.use(tenantLimiter);
+
+// Swagger UI — served at /docs
+const swaggerDoc = load(
+  readFileSync(join(__dirname, "../../openapi.yaml"), "utf8")
+) as object;
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
 app.use("/auth", authRouter);
 app.use("/webhooks/list", verifyToken, webhooksRouter);
@@ -81,7 +98,8 @@ app.use("/memory", verifyToken, memoryRouter);
 app.use("/credentials", verifyToken, credentialsRouter);
 app.use("/variables", verifyToken, variablesRouter);
 app.use("/tokens", verifyToken, tokensRouter);
-app.use("/templates", verifyToken, templatesRouter);
+app.use("/apikeys", verifyToken, apiKeysRouter);
+app.use("/templates", templatesRouter);
 // DREAM simulation — requires auth
 app.use("/simulate", verifyToken, simulateRouter);
 app.use("/schedules", verifyToken, schedulesRouter);
@@ -96,6 +114,12 @@ app.use("/hope", verifyToken, hopeRouter);
 
 // Admin endpoints — protected by ADMIN_SECRET_KEY header (no JWT required)
 app.use("/admin", adminRouter);
+
+// KNOLL Studio audit endpoint (ENTERPRISE+ plan required)
+app.use("/knoll", knollRouter);
+
+// Queue monitoring — admin-only (x-admin-key required inside the router)
+app.use("/queue", queueRouter);
 
 // ---------------------------------------------------------------------------
 // Sea-Scyte domain routes

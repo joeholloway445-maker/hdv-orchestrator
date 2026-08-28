@@ -11,7 +11,18 @@ router.get("/", async (req: AuthRequest, res) => {
     where: { userId: req.userId!, workflowId: workflowId ?? "" },
     orderBy: { key: "asc" },
   });
-  res.json(items);
+  // Map to the MemoryRecord shape the Companion frontend expects:
+  //   { id, content, tags, createdAt }
+  type RawMemory = { id: string; key: string; value: unknown; workflowId: string; createdAt: Date };
+  const records = (items as RawMemory[]).map((m) => ({
+    id: m.id,
+    key: m.key,
+    content: typeof m.value === "string" ? m.value : JSON.stringify(m.value),
+    tags: [] as string[],
+    createdAt: m.createdAt,
+    workflowId: m.workflowId,
+  }));
+  res.json(records);
 });
 
 router.put("/:key", async (req: AuthRequest, res) => {

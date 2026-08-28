@@ -147,6 +147,9 @@ router.post("/", requireStudio("DREAM"), async (req: AuthRequest, res) => {
 
     return res.json({
       mode: "simulate",
+      // Top-level aliases for the Companion frontend (expects { nodes, grade })
+      nodes: trace,
+      grade: score.grade,
       trace,
       score,
       summary: {

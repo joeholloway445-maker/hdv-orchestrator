@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS "ApiKey" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "keyHash" TEXT NOT NULL,
+  "lastUsed" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expiresAt" TIMESTAMP(3),
+  "revoked" BOOLEAN NOT NULL DEFAULT false,
+  CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "ApiKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "ApiKey_keyHash_key" ON "ApiKey"("keyHash");

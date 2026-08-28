@@ -9,6 +9,8 @@ import { startScheduledRunner } from "./scheduledRunner";
 import { startTestServer } from "./testServer";
 import { startStallRecovery } from "./stall";
 import { cleanupPayloads, payloadSummary } from "./lib/payload";
+import { startHealthServer } from "./health";
+import { notifyWebhooks } from "./lib/notifyWebhooks";
 
 const prisma = new PrismaClient();
 
@@ -41,6 +43,12 @@ const worker = new Worker(
     try {
       const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
       if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
+      const tenantId = workflow.userId;
+      // Broadcast execution:start so the canvas can reset node statuses
+      await publisher.publish(
+        `hdv:exec:${workflowId}`,
+        JSON.stringify({ type: "execution:start", executionId, workflowId, tenantId })
+      );
 
       // Concurrency guard
       const maxConcurrency = (workflow as unknown as Record<string, unknown>).maxConcurrency as number | null;
@@ -83,6 +91,8 @@ const worker = new Worker(
         },
       });
       await cleanupPayloads(executionId);
+      // Notify outbound webhook endpoints (fire-and-forget)
+      notifyWebhooks(prisma, workflowId, tenantId, "workflow.success").catch(() => {});
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[Worker] Execution ${executionId} failed:`, msg);
@@ -91,10 +101,16 @@ const worker = new Worker(
         data: { status: "FAILED", finishedAt: new Date(), data: JSON.parse(JSON.stringify({ triggerData, error: msg })) },
       });
       await cleanupPayloads(executionId);
-      await publisher.publish(
-        "workflow:telemetry",
-        JSON.stringify({ type: "execution-failed", executionId, error: msg })
-      );
+      const failTenantId = (await prisma.workflow.findUnique({ where: { id: workflowId }, select: { userId: true } }).catch(() => null))?.userId;
+      // Notify outbound webhook endpoints (fire-and-forget)
+      if (failTenantId) {
+        notifyWebhooks(prisma, workflowId, failTenantId, "workflow.failure", msg).catch(() => {});
+      }
+      const failPayload = JSON.stringify({ type: "execution-failed", executionId, workflowId, tenantId: failTenantId, error: msg });
+      await Promise.all([
+        publisher.publish("workflow:telemetry", failPayload),
+        publisher.publish(`hdv:exec:${workflowId}`, failPayload),
+      ]);
 
       // Trigger error workflow if configured
       const wf = await prisma.workflow.findUnique({ where: { id: workflowId } }).catch(() => null);
@@ -123,6 +139,8 @@ worker.on("completed", (job) => console.log(`[Worker] Job ${job.id} completed`))
 worker.on("failed", (job, err) => console.error(`[Worker] Job ${job?.id} failed:`, err.message));
 
 console.log("[Worker] Listening on workflow-execution queue...");
+
+startHealthServer(Number(process.env.HEALTH_PORT) || 4001);
 
 startScheduler(prisma).catch((err) => console.error("[Scheduler] Failed to start:", err));
 startScheduledRunner();

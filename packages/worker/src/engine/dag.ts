@@ -37,6 +37,16 @@ async function pub(publisher: IORedis, executionId: string, event: Record<string
 }
 
 export async function executeWorkflow({ workflow, executionId, triggerData, publisher, prisma, checkpointExecutionId, executionDepth = 0 }: Options) {
+  // Publish to both legacy telemetry channel and per-workflow streaming channel
+  const workflowId = workflow.id;
+  const tenantId = workflow.userId;
+  async function pubEx(event: Record<string, unknown>) {
+    const payload = JSON.stringify({ executionId, workflowId, tenantId, ...event });
+    await Promise.all([
+      publisher.publish("workflow:telemetry", payload),
+      publisher.publish(`hdv:exec:${workflowId}`, payload),
+    ]);
+  }
   const nodes = workflow.nodes as unknown as RawNode[];
   const edges = workflow.edges as unknown as RawEdge[];
 
@@ -99,7 +109,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
     nodeStatus[nodeId] = "skipped";
     const node = nodes.find((n) => n.id === nodeId);
     const nodeType = String(node?.data?.nodeType || node?.type || "unknown");
-    pub(publisher, executionId, { type: "node-skipped", nodeId, nodeType }).catch(() => {});
+    pubEx({ type: "node-skipped", nodeId, nodeType }).catch(() => {});
     for (const childId of children[nodeId]) cascadeSkip(childId);
   }
 
@@ -143,7 +153,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
     $input.$nodeOutputs = $nodeOutputs;
 
     nodeStatus[nodeId] = "running";
-    await pub(publisher, executionId, { type: "node-started", nodeId, nodeType });
+    await pubEx({ type: "node-started", nodeId, nodeType });
 
     const logEntry = await prisma.executionNodeLog.create({
       data: { executionId, nodeId, nodeType, status: "RUNNING", input: payloadSummary($input) as object },
@@ -160,7 +170,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
       outputs[nodeId] = output;
       nodeStatus[nodeId] = "done";
 
-      await pub(publisher, executionId, { type: "node-finished", nodeId, nodeType, output: payloadSummary(output) });
+      await pubEx({ type: "node-finished", nodeId, nodeType, output: payloadSummary(output) });
       await prisma.executionNodeLog.update({
         where: { id: logEntry.id },
         data: { status: "SUCCESS", output: payloadSummary(rawOutput) as object, finishedAt: new Date() },
@@ -204,7 +214,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
           where: { id: logEntry.id },
           data: { status: "SUCCESS", output: payloadSummary($input) as object, finishedAt: new Date() },
         });
-        await pub(publisher, executionId, { type: "node-finished", nodeId, nodeType, output: payloadSummary($input) });
+        await pubEx({ type: "node-finished", nodeId, nodeType, output: payloadSummary($input) });
         const contExec = await prisma.execution.create({
           data: {
             workflowId: workflow.id,
@@ -225,7 +235,7 @@ export async function executeWorkflow({ workflow, executionId, triggerData, publ
 
       const msg = error instanceof Error ? error.message : String(error);
       nodeStatus[nodeId] = "error";
-      await pub(publisher, executionId, { type: "node-error", nodeId, nodeType, error: msg });
+      await pubEx({ type: "node-error", nodeId, nodeType, error: msg });
       await prisma.executionNodeLog.update({
         where: { id: logEntry.id },
         data: { status: "ERROR", error: msg, finishedAt: new Date() },
