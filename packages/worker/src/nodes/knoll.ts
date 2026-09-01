@@ -16,8 +16,8 @@
  * All blocked decisions are recorded in a tamper-evident hash-chain (globalAuditChain).
  */
 import { interpolate as _interpolate } from "../lib/expr";
-import { globalAuditLog } from "../hdv/audit.js";
-import { globalAuditChain } from "../hdv/hashchain.js";
+import { globalAuditLog } from "../hdv/audit";
+import { globalAuditChain } from "../hdv/hashchain";
 
 interface NodeDef {
   data: Record<string, unknown>;
