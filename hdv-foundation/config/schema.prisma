@@ -1,0 +1,151 @@
+// Prisma schema for the Big 5 Matrix persistence layer.
+//
+// Phase 2 note: the running system still uses in-memory stores by default (APEX ledger,
+// KNOLL audit, node registry, HOPE intent archive). The persistence/ layer now exposes
+// repository interfaces (RequestLogRepository, NodeIdentityRepository,
+// SecurityAuditRepository, IntentArchiveRepository) whose in-memory implementations
+// mirror these models field-for-field. A Phase 4 Prisma-backed implementation can satisfy
+// the same interfaces without touching call sites. This schema is the source of truth.
+
+generator client {
+  provider      = "prisma-client-js"
+  // Runtime image is debian bookworm (OpenSSL 3). Builder may detect 1.1.x without
+  // openssl installed — ship both so Docker and local hosts stay compatible.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Every packet APEX attempts to route produces one RequestLog row (ledger).
+model RequestLog {
+  id             String   @id @default(uuid())
+  packetId       String   @unique
+  timestamp      DateTime @default(now())
+  source         String
+  destination    String
+  status         String // 'SUCCESS', 'BLOCKED', 'FAILED'
+  cost_usd       Decimal  @default(0.00)
+  knollSignature String
+}
+
+/// One row per node in the 20,480-node fleet (ephemeral rows churn frequently).
+model NodeIdentity {
+  node_id      String   @id
+  role         String
+  status       String // 'ACTIVE', 'IDLE', 'TERMINATED'
+  last_seen    DateTime @updatedAt
+  is_ephemeral Boolean  @default(true)
+}
+
+/// KNOLL emits one SecurityAudit row per interception verdict.
+model SecurityAudit {
+  id        String   @id @default(uuid())
+  packetId  String
+  outcome   String
+  reasoning String?
+  timestamp DateTime @default(now())
+}
+
+/// HOPE documents one IntentDocument row per interpreted user intent (its documentation
+/// layer). entities/goals/constraints are JSON-encoded string arrays in the durable store.
+model IntentDocument {
+  id                   String   @id @default(uuid())
+  utterance            String
+  kind                 String // 'SIMULATE','EXECUTE','QUERY','CLARIFY','DOCUMENT','UNKNOWN'
+  entities             Json     @default("[]")
+  goals                Json     @default("[]")
+  constraints          Json     @default("[]")
+  suggestedDestination String
+  confidence           Float    @default(0)
+  documentedAt         DateTime @default(now())
+  clarificationNeeded  Boolean  @default(false)
+}
+
+/// Real account identity (auth/). One row per registered email+password account. NO email
+/// verification and NO password-reset flow yet — both are deliberate follow-ups, not part of
+/// this minimal-but-correct first pass (see auth/service.ts). `passwordHash` is never the raw
+/// password: it is `scrypt` salt:hash (see auth/service.ts hashPassword/verifyPassword).
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+/// A logged-in session token (auth/). One row per active login; `logout` deletes the row,
+/// `getUserBySession` rejects (and lazily deletes) rows past `expiresAt`. Tokens are
+/// cryptographically random (crypto.randomBytes) and used as-is as the primary key.
+model Session {
+  token     String   @id
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+/// companion/ chat's opt-in relationship memory: one row per client-supplied companionId
+/// (see companion/types.ts — there is no user-account system yet, so this is an opaque
+/// client-generated id, not a real user id). One row per companion is enough for this pass;
+/// no relational turn-by-turn history table.
+model CompanionMemory {
+  companionId    String   @id
+  affectionLevel Int      @default(50) // 0-100
+  summary        String   @default("") // running relationship/fact summary, capped length
+  turnCount      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+/// creator/ marketplace: one row per User who has applied to become a creator (real people
+/// turning themselves into an AI companion persona and earning when it's used — see
+/// creator/index.ts). `verificationStatus` starts 'unverified' and NOTHING in the default
+/// (unconfigured) build ever sets it to 'verified' — see creator/payout_stub.ts's module header.
+/// `stripeAccountId` / `stripeVerificationSessionId` / `verificationStatusCache` are used ONLY by
+/// creator/payout_stripe_live.ts (the real Stripe Identity + Connect implementation — see
+/// creator/payout_factory.ts for when it's wired instead of the stub). `verificationStatusCache`
+/// is updated exclusively by a signature-verified Stripe webhook event
+/// (creator/stripe_webhook.ts) and is a display-only cache, never the sole gate for a real
+/// payout — see CreatorPayoutStripeLive.requestPayout's doc comment.
+model CreatorProfile {
+  userId                      String   @id
+  displayName                 String
+  bio                         String?
+  verificationStatus          String   @default("unverified") // 'unverified' | 'pending' | 'verified'
+  createdAt                   DateTime @default(now())
+  stripeAccountId             String?
+  stripeVerificationSessionId String?
+  verificationStatusCache     String? // 'unverified' | 'pending' | 'verified' | null (never set)
+}
+
+/// One row per persona a creator has submitted. `personaId` is the SAME id space as
+/// companion/portrait_types.ts's PortraitPersona.personaId / FuckLike's companion presetId —
+/// it is the join key creator/handlers.ts's recordLikenessUsage uses to attribute a
+/// chat/portrait/scene event back to the owning creator. `referencePhotoUrls` are URLs only —
+/// image bytes are never stored here (assumed hosted elsewhere, e.g. the VPS static asset path).
+model CreatorPersona {
+  id                 String   @id @default(uuid())
+  creatorUserId      String
+  personaId          String   @unique
+  displayName        String
+  description        String?
+  referencePhotoUrls Json     @default("[]")
+  /// Links to a 3D scan/model (Polycam/RealityScan/in3D share link, hosted .glb/.usdz/.obj) or
+  /// a multi-angle photo set — same URL-only posture as referencePhotoUrls (creator/types.ts).
+  scanUrls           Json     @default("[]")
+  createdAt          DateTime @default(now())
+}
+
+/// One row per billable likeness-usage event (a chat turn, portrait, or scene generated using a
+/// creator-owned persona — see creator/handlers.ts's recordLikenessUsage, called fire-and-forget
+/// from companion/handlers.ts, companion/portrait_handlers.ts, companion/scene_handlers.ts).
+/// `accruedUsd` comes from the placeholder per-event rate table in creator/types.ts
+/// (LIKENESS_RATE_USD) — operator-tunable, not final pricing. Append-only.
+model LikenessUsageEvent {
+  id            String   @id @default(uuid())
+  creatorUserId String
+  personaId     String
+  eventType     String // 'chat_turn' | 'portrait_generated' | 'scene_generated'
+  accruedUsd    Decimal  @default(0.00)
+  createdAt     DateTime @default(now())
+}

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HopeDreamVision — HDV Foundation</title>
+<meta name="description" content="HopeDreamVision — a governed agent matrix. Talk to HOPE. KNOLL gates. APEX routes." />
+<meta name="color-scheme" content="dark" />
+<meta property="og:title" content="HopeDreamVision — HDV Foundation" />
+<meta property="og:description" content="A governed agent matrix. Talk to HOPE. One road in." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,900&family=Sora:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --void: #05070f;
+    --deep: #090d1c;
+    --ink: #eef1fb;
+    --ink-soft: rgba(238, 241, 251, 0.70);
+    --ink-faint: rgba(238, 241, 251, 0.42);
+    --amber: #ffce7a;
+    --amber-deep: #f0a541;
+    --aqua: #6ee7d0;
+    --line: rgba(255, 206, 122, 0.22);
+    --line-soft: rgba(238, 241, 251, 0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    background: var(--void);
+    -webkit-font-smoothing: antialiased;
+  }
+  .field {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    background:
+      radial-gradient(55% 50% at 18% 12%, rgba(240, 165, 65, 0.28), transparent 62%),
+      radial-gradient(50% 45% at 88% 8%, rgba(47, 185, 168, 0.26), transparent 58%),
+      linear-gradient(165deg, var(--void), var(--deep) 70%);
+  }
+  .field .aurora {
+    position: absolute; inset: -35%;
+    background: conic-gradient(from 210deg at 35% 25%, rgba(255,206,122,0.14), transparent 28%, rgba(110,231,208,0.12) 58%, transparent 82%);
+    filter: blur(70px);
+    animation: drift 28s ease-in-out infinite alternate;
+    mix-blend-mode: screen;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1.05); }
+    to   { transform: translate3d(3%, 3%, 0) rotate(7deg) scale(1.12); }
+  }
+
+  .shell { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem clamp(1.2rem, 4vw, 2.4rem);
+  }
+  .bar a { color: var(--ink-soft); text-decoration: none; font-size: 0.85rem; }
+  .bar a:hover { color: var(--amber); }
+
+  .hero {
+    flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: clamp(2rem, 8vh, 5rem) clamp(1.2rem, 4vw, 2.4rem) clamp(3rem, 10vh, 6rem);
+    max-width: 920px;
+  }
+  .hero > * {
+    opacity: 0; transform: translateY(18px);
+    animation: rise 0.9s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .hero > *:nth-child(1) { animation-delay: .04s; }
+  .hero > *:nth-child(2) { animation-delay: .16s; }
+  .hero > *:nth-child(3) { animation-delay: .28s; }
+  .hero > *:nth-child(4) { animation-delay: .40s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  .brand {
+    margin: 0 0 1.4rem;
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(2.8rem, 9vw, 5.6rem);
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    background: linear-gradient(165deg, var(--amber) 0%, var(--amber-deep) 55%, #c9832f 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: breathe 9s ease-in-out infinite;
+    transform-origin: left center;
+  }
+  .brand small {
+    display: block;
+    margin-top: 0.35rem;
+    font-family: 'Sora', sans-serif;
+    font-weight: 500;
+    font-size: clamp(0.85rem, 2vw, 1.05rem);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--aqua);
+    background: none; -webkit-background-clip: unset; background-clip: unset;
+  }
+  @keyframes breathe {
+    0%, 100% { filter: brightness(1); transform: scale(1); }
+    50% { filter: brightness(1.06); transform: scale(1.01); }
+  }
+
+  h1 {
+    margin: 0;
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: clamp(1.55rem, 4.2vw, 2.35rem);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    max-width: 18ch;
+  }
+  .support {
+    margin: 1.1rem 0 0;
+    max-width: 42ch;
+    color: var(--ink-soft);
+    font-size: clamp(1rem, 2vw, 1.15rem);
+  }
+  .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.2rem; }
+  .btn {
+    display: inline-flex; align-items: center; text-decoration: none;
+    font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em;
+    padding: 0.85rem 1.45rem; border-radius: 999px;
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+  }
+  .btn-primary {
+    color: #17130a;
+    background: linear-gradient(180deg, var(--amber), var(--amber-deep));
+    box-shadow: 0 14px 36px -14px rgba(255, 206, 122, 0.65);
+  }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-ghost {
+    color: var(--ink);
+    border: 1px solid var(--line);
+    background: transparent;
+  }
+  .btn-ghost:hover { border-color: rgba(255,206,122,0.55); transform: translateY(-2px); }
+
+  .foot {
+    padding: 1.2rem clamp(1.2rem, 4vw, 2.4rem) 1.8rem;
+    color: var(--ink-faint);
+    font-size: 0.78rem;
+    display: flex; flex-wrap: wrap; gap: 0.75rem 1.4rem;
+    justify-content: space-between;
+  }
+  .foot a { color: var(--ink-soft); text-decoration: none; }
+  .foot a:hover { color: var(--amber); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; }
+    .hero > * { opacity: 1 !important; transform: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="field" aria-hidden="true"><div class="aurora"></div></div>
+  <div class="shell">
+    <header class="bar">
+      <span aria-hidden="true"></span>
+      <a href="waitlist.html">Waitlist</a>
+    </header>
+
+    <main class="hero">
+      <p class="brand">HopeDreamVision<small>HDV Foundation</small></p>
+      <h1>One road in. The matrix listens.</h1>
+      <p class="support">Talk to HOPE. KNOLL gates every route. APEX is the only road through.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://ai.hopedreamvision.com">Open the app</a>
+        <a class="btn btn-ghost" href="waitlist.html">Join the waitlist</a>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span>Governed · auditable · idle-cheap</span>
+      <span>
+        <a href="https://github.com/joeholloway445-maker/HDV_Foundation" target="_blank" rel="noopener">GitHub</a>
+        ·
+        <a href="waitlist.html">Waitlist</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
